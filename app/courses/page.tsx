@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { fullCourseData } from '@/lib/type';
 import { getCourseType } from '@/lib/course_codes_map';
 
@@ -98,6 +99,7 @@ const buildPreferenceCoursesFromRows = (rows: FacultyEntry[]): fullCourseData[] 
 
 export default function CoursesPage() {
     const router = useRouter();
+    const { data: session } = useSession();
 
     const [allSubjectsMode, setAllSubjectsMode] = useState(false);
     const [faculties, setFaculties] = useState<FacultyEntry[]>([]);
@@ -400,8 +402,12 @@ export default function CoursesPage() {
             <div className="bg-white border-t border-gray-300 py-6 px-8 shadow-lg animate-lucid-fade-up-delayed">
                 <div className="flex items-center justify-between max-w-7xl mx-auto">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
-                        <span className="text-gray-700 text-sm font-semibold">Sravan Kowsik Gonugunte</span>
+                        {session?.user?.image ? (
+                            <img src={session.user.image} alt="User avatar" className="w-10 h-10 rounded-full" />
+                        ) : (
+                            <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
+                        )}
+                        <span className="text-gray-700 text-sm font-semibold">{session?.user?.name || "Guest"}</span>
                     </div>
 
                     <div className="flex items-center gap-3">

@@ -3,12 +3,16 @@ import React, { useState } from "react";
 import Image from "next/image";
 import "./landing.css"; // Ensure standard normal CSS is imported
 import LoginModal from "../components/loginPopup"
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export default function LandingPage() {
   const [open, setOpen] = useState(false);
   const [isCalendarAnimating, setIsCalendarAnimating] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
-  const [showLogin, setShowLogin] = useState(false)
+  const [showLogin, setShowLogin] = useState(false);
+  const router = useRouter();
+  const { data: session } = useSession();
 
   const handleCalendarClick = () => {
     setIsCalendarAnimating(true);
@@ -23,11 +27,20 @@ export default function LandingPage() {
       <div className="white-container">
         <nav className="navbar">
           <div className="logo">FFCS</div>
-          <button className="login-btn" onClick={() => setShowLogin(true)}>Login</button>
+          {session ? (
+            <div className="flex items-center gap-3">
+              {session.user?.image && (
+                <img src={session.user.image} alt="avatar" className="w-8 h-8 rounded-full" />
+              )}
+              <span className="font-semibold text-black pr-8">{session.user?.name}</span>
+            </div>
+          ) : (
+            <button className="login-btn" onClick={() => setShowLogin(true)}>Login</button>
+          )}
         </nav>
         {showLogin && (
-  <LoginModal onClose={() => setShowLogin(false)} />
-)}
+          <LoginModal onClose={() => setShowLogin(false)} />
+        )}
 
         <section className="hero-section">
           <div className="hero-text">
@@ -38,7 +51,31 @@ export default function LandingPage() {
             </p>
             <div className="hero-buttons">
               <button className="btn-primary" onClick={() => setOpen(true)}>Get Started</button>
-              <button className="btn-secondary">Slot View</button>
+              {open && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+                  <div className="flex items-center justify-center w-[949px] h-[511px] bg-[#FFFCEE] rounded-[20px] shadow-xl p-8 relative">
+                    <div className="relative bg-[#FAFAFA] w-[900px] h-[459px] flex flex-col items-center rounded-[20px] p-10 shadow-[4px_4px_4px_rgba(191,191,191,0.25)]">
+                      <button onClick={() => setOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-black text-[28px]">✕</button>
+                      <h2 className="text-[32px] font-semibold text-center mb-2 absolute top-[50px]">
+                        Welcome {session?.user?.name ? `back, ${session.user.name}` : "to FFCS"}!
+                      </h2>
+                      <div className="w-[700px] h-[1px] bg-gray-300 mb-4 absolute top-[90px]"></div>
+                      <p className="text-center text-[20px] mb-12 absolute top-[110px]">Choose what you&apos;d like to do next</p>
+                      <div className="flex gap-14 absolute top-[180px]">
+                        <button className="flex flex-col items-center justify-center bg-[#E9F3E8] border-[5px] border-[#D4F4E6] rounded-[16px] p-6 w-[290px] h-[200px] shadow hover:bg-green-200 transition text-black" onClick={() => { setOpen(false); router.push('/preferences'); }}>
+                          <Image src="/create_new.png" alt="create" width={167} height={101} />
+                          <p className="font-medium text-center">Create a new one</p>
+                        </button>
+                        <button className="flex flex-col items-center justify-center bg-[#E9D5FF] border-[#F2D8FE] border-[5px] rounded-[16px] p-6 w-[290px] h-[200px] shadow hover:bg-purple-300 transition text-black" onClick={() => { setOpen(false); router.push("/saved"); }}>
+                          <Image src="/savedTimetable.png" alt="saved" width={167} height={101} unoptimized />
+                          <p className="mt-4 font-medium text-center">View saved timetables</p>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <button className="btn-secondary" onClick={() => router.push('/slots')}>Slot View</button>
             </div>
           </div>
           <div className="hero-graphic">
@@ -193,15 +230,15 @@ export default function LandingPage() {
             </div>
 
             <div className="f-block f-buttons">
-              <button className="f-btn f-btn-gen">
+              <button className="f-btn f-btn-gen" onClick={() => router.push('/preferences')}>
                 <Image src="/calendar_icon2.png" alt="calendar" width={32} height={32} />
                 <span>Generate<br />timetable</span>
               </button>
-              <button className="f-btn f-btn-saved">
+              <button className="f-btn f-btn-saved" onClick={() => router.push('/saved')}>
                 <Image src="/Clock.png" alt="clock" width={32} height={32} />
                 <span>View saved<br />timetables</span>
               </button>
-              <button className="f-btn f-btn-slots">
+              <button className="f-btn f-btn-slots" onClick={() => router.push('/slots')}>
                 <Image src="/slot_icon.png" alt="slot" width={32} height={32} />
                 <span>View slots</span>
               </button>

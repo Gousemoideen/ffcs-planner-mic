@@ -16,14 +16,15 @@ export const exportToPDF = async (elementId: string, filename: string = 'timetab
     try {
         // Capture the element as a canvas
         const canvas = await html2canvas(element, {
-            scale: 2, // Higher scale for better quality
+            scale: 2,
             useCORS: true,
-            backgroundColor: '#FFFAED', // Match the cream background of the app
+            backgroundColor: '#FFFAED',
             logging: false,
-        });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any);
 
         const imgData = canvas.toDataURL('image/png');
-        
+
         // PDF dimensions
         const pdf = new jsPDF({
             orientation: 'landscape',
