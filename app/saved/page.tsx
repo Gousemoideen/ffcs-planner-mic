@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
@@ -41,8 +41,8 @@ const THEORY_TIMES = [
 ];
 
 const SLOT_COLORS = [
-    '#A0C4FF', '#CAFFD0', '#E9D5FF', '#FEF08A', '#FFD6E0',
-    '#BDD7FF', '#B8F0E0', '#FFDAB9', '#C4B5FD', '#A7F3D0',
+    '#93C5FD', '#86EFAC', '#C4B5FD', '#FDE68A', '#FCA5A5',
+    '#7DD3FC', '#6EE7B7', '#FCD34D', '#DDD6FE', '#99F6E4',
 ];
 
 function getSlotColor(code: string, allCodes: string[]): string {
@@ -575,14 +575,15 @@ function TimetableDetailView({
 
     const THEORY_TIME_LABELS = [
         '8:00am-\n8:50am', '8:55am-\n9:45am', '9:50am-\n10:40am', '10:45am-\n11:35am',
-        '11:40am-\n12:30pm', '12:30-\n1:20pm', '2:00pm-\n2:50pm', '2:55pm-\n3:45pm',
+        '11:40am-\n12:30pm', '12:30pm-\n1:20pm', '2:00pm-\n2:50pm', '2:55pm-\n3:45pm',
         '3:50pm-\n4:40pm', '4:45pm-\n5:35pm', '5:40pm-\n6:30pm', '6:35pm-\n7:25pm', '',
     ];
     const LAB_TIME_LABELS = [
         '8:00am-\n8:50am', '8:50am-\n9:40am', '9:50am-\n10:40am', '10:40am-\n11:30am',
-        '11:40am-\n12:30pm', '12:30-\n1:20pm', '2:00pm-\n2:50pm', '2:50pm-\n3:40pm',
+        '11:40am-\n12:30pm', '12:30pm-\n1:20pm', '2:00pm-\n2:50pm', '2:50pm-\n3:40pm',
         '3:50pm-\n4:40pm', '4:40pm-\n5:30pm', '5:40pm-\n6:30pm', '6:30pm-\n7:20pm', '',
     ];
+    const LUNCH_LETTERS = ['L', 'U', 'N', 'C', 'H'];
 
     return (
         <div className="dv-page">
@@ -611,52 +612,94 @@ function TimetableDetailView({
                         <table className="dv-table">
                             <thead>
                                 <tr>
-                                    <th className="dv-th-day-header" rowSpan={2}></th>
-                                    <th className="dv-th-section" colSpan={13}>Theory Hours</th>
-                                    <th className="dv-th-section" colSpan={13}>Lab Hours</th>
+                                    <th className="dv-th-row-label dv-th-label-theory">Theory Hours</th>
+                                    {THEORY_TIME_LABELS.slice(0, 6).map((t, i) => (
+                                        <th key={`th-${i}`} className="dv-th-time dv-th-time-theory">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    ))}
+                                    <th className="dv-th-lunch" rowSpan={2}></th>
+                                    {THEORY_TIME_LABELS.slice(6).map((t, i) => (
+                                        <th key={`th-${i + 6}`} className="dv-th-time dv-th-time-theory">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    ))}
                                 </tr>
                                 <tr>
-                                    {THEORY_TIME_LABELS.map((t, i) => (
-                                        <th key={`th-${i}`} className="dv-th-time">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    <th className="dv-th-row-label dv-th-label-lab">Lab Hours</th>
+                                    {LAB_TIME_LABELS.slice(0, 6).map((t, i) => (
+                                        <th key={`lh-${i}`} className="dv-th-time dv-th-time-lab">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
                                     ))}
-                                    {LAB_TIME_LABELS.map((t, i) => (
-                                        <th key={`lh-${i}`} className="dv-th-time">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    {/* Lunch th covered by rowSpan above */}
+                                    {LAB_TIME_LABELS.slice(6).map((t, i) => (
+                                        <th key={`lh-${i + 6}`} className="dv-th-time dv-th-time-lab">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {DAYS.map((day, rowIdx) => (
-                                    <tr key={day}>
-                                        <td className="dv-td-day">{day}</td>
-                                        {/* Theory cells */}
-                                        {theoryGrid[rowIdx].map((cell, colIdx) => (
-                                            <td key={`t-${colIdx}`} className="dv-td">
-                                                {cell ? (
-                                                    <div className="dv-cell-filled" style={{ backgroundColor: getSlotColor(cell.code, allCodes) }}>
+                                    <React.Fragment key={day}>
+                                        {/* Theory row */}
+                                        <tr>
+                                            <td className="dv-td-day" rowSpan={2}>{day}</td>
+                                            {theoryGrid[rowIdx].slice(0, 6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`t-${colIdx}`} className="dv-td dv-td-theory-filled">
                                                         <div className="dv-cell-slot">{theoryLabels[rowIdx]?.[colIdx]}</div>
                                                         <div className="dv-cell-code">{cell.code}</div>
                                                         <div className="dv-cell-faculty">{cell.facultyName}</div>
-                                                    </div>
+                                                    </td>
                                                 ) : (
-                                                    <div className="dv-cell-empty">{theoryLabels[rowIdx]?.[colIdx]}</div>
-                                                )}
+                                                    <td key={`t-${colIdx}`} className="dv-td dv-td-theory-empty">
+                                                        <div className="dv-cell-empty">{theoryLabels[rowIdx]?.[colIdx]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                            {/* Lunch column spans theory + lab rows */}
+                                            <td className="dv-td-lunch" rowSpan={2}>
+                                                <span className="dv-lunch-label">{LUNCH_LETTERS[rowIdx]}</span>
                                             </td>
-                                        ))}
-                                        {/* Lab cells */}
-                                        {labGrid[rowIdx].map((cell, colIdx) => (
-                                            <td key={`l-${colIdx}`} className="dv-td">
-                                                {cell ? (
-                                                    <div className="dv-cell-filled" style={{ backgroundColor: getSlotColor(cell.code, allCodes) }}>
+                                            {theoryGrid[rowIdx].slice(6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`t-${colIdx + 6}`} className="dv-td dv-td-theory-filled">
+                                                        <div className="dv-cell-slot">{theoryLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                        <div className="dv-cell-code">{cell.code}</div>
+                                                        <div className="dv-cell-faculty">{cell.facultyName}</div>
+                                                    </td>
+                                                ) : (
+                                                    <td key={`t-${colIdx + 6}`} className="dv-td dv-td-theory-empty">
+                                                        <div className="dv-cell-empty">{theoryLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                        </tr>
+                                        {/* Lab row — day + lunch covered by rowSpan */}
+                                        <tr>
+                                            {labGrid[rowIdx].slice(0, 6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`l-${colIdx}`} className="dv-td dv-td-lab-filled">
                                                         <div className="dv-cell-slot">{labLabels[rowIdx]?.[colIdx]}</div>
                                                         <div className="dv-cell-code">{cell.code}</div>
                                                         <div className="dv-cell-faculty">{cell.facultyName}</div>
-                                                    </div>
+                                                    </td>
                                                 ) : (
-                                                    <div className="dv-cell-empty">{labLabels[rowIdx]?.[colIdx]}</div>
-                                                )}
-                                            </td>
-                                        ))}
-                                    </tr>
+                                                    <td key={`l-${colIdx}`} className="dv-td dv-td-lab-empty">
+                                                        <div className="dv-cell-empty">{labLabels[rowIdx]?.[colIdx]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                            {/* Lunch td covered by rowSpan from theory row */}
+                                            {labGrid[rowIdx].slice(6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`l-${colIdx + 6}`} className="dv-td dv-td-lab-filled">
+                                                        <div className="dv-cell-slot">{labLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                        <div className="dv-cell-code">{cell.code}</div>
+                                                        <div className="dv-cell-faculty">{cell.facultyName}</div>
+                                                    </td>
+                                                ) : (
+                                                    <td key={`l-${colIdx + 6}`} className="dv-td dv-td-lab-empty">
+                                                        <div className="dv-cell-empty">{labLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                        </tr>
+                                    </React.Fragment>
                                 ))}
                             </tbody>
                         </table>
