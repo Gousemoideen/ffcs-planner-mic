@@ -532,7 +532,7 @@ body {
     border-radius: 6px;
     box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
     color: #000;
-    animation: none;
+    animation: floatAndVibrate 3s ease-in-out infinite;
 }
 
 .floating-tile:nth-child(1) {

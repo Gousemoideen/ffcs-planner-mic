@@ -329,13 +329,13 @@ export default function LandingPage() {
             </div>
 
             <div className="f-block f-graphics">
-              <div className="floating-tile" style={{ background: '#f3e8ff', top: '58px', left: '16px', transform: 'rotate(-12deg)' }}>C</div>
-              <div className="floating-tile" style={{ background: '#fef3c7', top: '88px', left: '64px', transform: 'rotate(6deg)' }}>D</div>
-              <div className="floating-tile" style={{ background: '#d1fae5', top: '18px', left: '96px', transform: 'rotate(18deg)' }}>G</div>
-              <div className="floating-tile" style={{ background: '#a7f3d0', top: '24px', right: '24px', transform: 'rotate(28deg)' }}>E</div>
-              <div className="floating-tile" style={{ background: '#bfdbfe', top: '56px', right: '82px', transform: 'rotate(-30deg)' }}>B</div>
-              <div className="floating-tile" style={{ background: '#fef08a', top: '92px', right: '18px', transform: 'rotate(-6deg)' }}>A</div>
-              <div className="floating-tile" style={{ background: '#e9d5ff', top: '100px', left: '146px', transform: 'rotate(34deg)' }}>F</div>
+              <div className="floating-tile" style={{ background: '#f3e8ff', top: '15px', left: '15px', transform: 'rotate(-12deg)' }}>C</div>
+              <div className="floating-tile" style={{ background: '#fef3c7', top: '55px', left: '45px', transform: 'rotate(8deg)' }}>D</div>
+              <div className="floating-tile" style={{ background: '#d1fae5', top: '20px', left: '75px', transform: 'rotate(15deg)' }}>G</div>
+              <div className="floating-tile" style={{ background: '#a7f3d0', top: '30px', right: '25px', transform: 'rotate(25deg)' }}>E</div>
+              <div className="floating-tile" style={{ background: '#bfdbfe', top: '65px', right: '65px', transform: 'rotate(-18deg)' }}>B</div>
+              <div className="floating-tile" style={{ background: '#fef08a', top: '85px', right: '15px', transform: 'rotate(-6deg)' }}>A</div>
+              <div className="floating-tile" style={{ background: '#e9d5ff', top: '95px', left: '110px', transform: 'rotate(22deg)' }}>F</div>
             </div>
 
             <div className="f-block f-credits">
