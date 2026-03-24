@@ -10,6 +10,12 @@ import { generateTT } from '@/lib/utils';
 import { getSlotViewPayload } from '@/lib/slot-view';
 import { fullCourseData, timetableDisplayData } from '@/lib/type';
 import { clearPlannerClientCache } from '@/lib/clientCache';
+import LoginModal from '@/components/loginPopup';
+
+const setCookie = (name: string, value: string) => {
+    if (typeof document === 'undefined') return;
+    document.cookie = `${name}=${value}; path=/; max-age=3600`;
+};
 
 const getCookie = (name: string): string | null => {
     if (typeof document === 'undefined') return null;
@@ -49,7 +55,7 @@ export default function TimetablePage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [showSaveModal, setShowSaveModal] = useState(false);
     const [timetableTitle, setTimetableTitle] = useState('My Schedule');
-    const [editingTimetableTitle, setEditingTimetableTitle] = useState<string | null>(null);
+    const [showLoginModal, setShowLoginModal] = useState(false);
 
     const { scheduleRows, leftTimes, rightTimes } = useMemo(() => getSlotViewPayload(), []);
 
@@ -60,11 +66,7 @@ export default function TimetablePage() {
         if (hasInitialized.current) return;
         hasInitialized.current = true;
 
-        // Check if we're editing an existing timetable
-        const editingTitle = getCookie('editingTimetableTitle');
-        if (editingTitle) {
-            setTimetableTitle(editingTitle);
-        }
+
 
         if (!timetableData || timetableData.length === 0) {
             const savedCoursesRaw = getCookie('preferenceCourses');
@@ -93,9 +95,9 @@ export default function TimetablePage() {
         setTimeout(() => setToast(''), 3000);
     }, []);
 
-    const handleSave = async (isPublic = false, customTitle?: string) => {
+    const handleSave = async (customTitle?: string, options?: { skipRedirect?: boolean }) => {
         if (!session?.user?.email) {
-            showToast('Please sign in to save or share your timetable.');
+            setShowLoginModal(true);
             return null;
         }
         if (isSaving || currentTT.length === 0) return null;
@@ -103,7 +105,6 @@ export default function TimetablePage() {
         setIsSaving(true);
         try {
             const editingTimetableId = getCookie('editingTimetableId');
-            const editingTimetableTitle = getCookie('editingTimetableTitle');
 
             const slotsData = currentTT.map(s => ({
                 slot: s.slotName,
@@ -114,35 +115,49 @@ export default function TimetablePage() {
 
             if (editingTimetableId) {
                 // Update existing timetable
+                const title = customTitle?.trim() || timetableTitle.trim() || 'My Schedule';
                 const res = await axios.patch(`/api/timetables/${editingTimetableId}`, {
+                    title,
                     slots: slotsData,
-                    isPublic,
                 });
 
                 if (res.data.success) {
-                    // Keep editing cookies so user can continue to update the same timetable
-                    if (!isPublic) showToast('Timetable updated successfully!');
+                    if (!options?.skipRedirect) {
+                        showToast('Timetable updated successfully!');
+                        setTimeout(() => { router.refresh(); router.push('/saved'); }, 1200);
+                    }
                     return { _id: editingTimetableId, shareId: null };
                 }
             } else {
                 // Create new timetable
-                const title = isPublic ? 'Shared Timetable' : (prompt('Enter a title for this timetable:', 'My Schedule') || 'Untitled');
+                const title = customTitle?.trim() || timetableTitle.trim() || 'My Schedule';
                 const res = await axios.post('/api/save-timetable', {
                     title,
                     slots: slotsData,
                     owner: session.user.email,
-                    isPublic,
+                    isPublic: false,
                 });
 
                 if (res.data.success) {
-                    clearPlannerClientCache({ includeEditingState: false });
-                    if (!isPublic) showToast('Timetable saved successfully!');
+                    // Update editing cookie so subsequent shares bind to the new save!
+                    setCookie('editingTimetableId', res.data.timetable._id);
+
+
+                    if (!options?.skipRedirect) {
+                        showToast('Timetable saved successfully!');
+                        setTimeout(() => {
+                            clearPlannerClientCache({ includeEditingState: true });
+                            router.refresh();
+                            router.push('/saved');
+                        }, 1200);
+                    }
                     return res.data.timetable;
                 }
             }
-        } catch (error) {
-            console.error('Save error:', error);
-            showToast('Failed to save timetable.');
+        } catch (error: any) {
+            const detail = error?.response?.data?.detail || error?.response?.data?.error || error?.message || 'Unknown error';
+            console.error('Save error:', detail, error);
+            showToast(`Failed to save: ${detail}`);
         } finally {
             setIsSaving(false);
         }
@@ -150,39 +165,117 @@ export default function TimetablePage() {
     };
 
     const handleDownload = async () => {
-        if (currentTT.length === 0) return;
+        console.log('handleDownload called', { currentTTLength: currentTT.length });
+        if (currentTT.length === 0) {
+            showToast('No timetable data to download.');
+            window.alert('No timetable data to download.');
+            return;
+        }
         showToast('Preparing PDF...');
         try {
             await exportToPDF('rat', `timetable-option-${currentIndex + 1}.pdf`);
             showToast('PDF downloaded successfully!');
-        } catch (error) {
+        } catch (error: any) {
             console.error('PDF error:', error);
-            showToast('Failed to generate PDF.');
+            showToast('Failed to generate PDF. Please try again.');
+            window.alert('Failed to generate PDF: ' + (error?.message || String(error)));
+        }
+    };
+
+    const copyToClipboard = async (text: string): Promise<boolean> => {
+        // Try the modern Clipboard API first
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch {
+                // Fall through to fallback
+            }
+        }
+        // Fallback: create a temporary textarea and use execCommand
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            return ok;
+        } catch {
+            return false;
         }
     };
 
     const handleShare = async () => {
-        if (!session?.user?.email || currentTT.length === 0) return;
-        const editingTimetableId = getCookie('editingTimetableId');
+        console.log('handleShare called!');
+        if (!session?.user?.email) {
+            setShowLoginModal(true);
+            return;
+        }
+        if (currentTT.length === 0) {
+            window.alert('No timetable data to share.');
+            showToast('No timetable data to share.');
+            return;
+        }
 
-        if (editingTimetableId) {
-            // Update existing timetable and get its shareId
-            await handleSave(true);
-            const timetableRes = await axios.get(`/api/timetables/${editingTimetableId}`);
-            const shareId = timetableRes.data.shareId;
-            if (shareId) {
-                const url = `${window.location.origin}/share/${shareId}`;
-                await navigator.clipboard.writeText(url);
-                showToast('Share link copied to clipboard!');
+        try {
+            console.log('Starting share flow...');
+            const editingTimetableId = getCookie('editingTimetableId');
+            let shareId: string | null = null;
+
+            if (editingTimetableId) {
+                console.log('Editing existing timetable:', editingTimetableId);
+                const slotsData = currentTT.map(s => ({
+                    slot: s.slotName,
+                    courseCode: s.courseCode,
+                    courseName: s.courseName,
+                    facultyName: s.facultyName,
+                }));
+                await axios.patch(`/api/timetables/${editingTimetableId}`, {
+                    slots: slotsData,
+                });
+                const timetableRes = await axios.get(`/api/timetables/${editingTimetableId}`);
+                shareId = timetableRes.data.shareId;
+            } else {
+                console.log('Saving new private timetable...');
+                const saved = await handleSave(timetableTitle, { skipRedirect: true });
+                console.log('Save result:', saved);
+                if (saved?.shareId) {
+                    shareId = saved.shareId;
+                } else if (saved?._id) {
+                    const res = await axios.get(`/api/timetables/${saved._id}`);
+                    shareId = res.data.shareId;
+                } else {
+                    window.alert('Failed to save timetable for sharing (null result).');
+                    showToast('Failed to save timetable for sharing.');
+                    return;
+                }
             }
-        } else {
-            // Create new timetable
-            const saved = await handleSave(true);
-            if (saved?.shareId) {
-                const url = `${window.location.origin}/share/${saved.shareId}`;
-                await navigator.clipboard.writeText(url);
-                showToast('Share link copied to clipboard!');
+
+            console.log('Got shareId:', shareId);
+            if (!shareId) {
+                window.alert('Could not generate or find shareId.');
+                showToast('Could not generate share link.');
+                return;
             }
+
+            const url = `${window.location.origin}/share/${shareId}`;
+            console.log('Attempting to copy:', url);
+            const copied = await copyToClipboard(url);
+            if (copied) {
+                window.alert('Share link copied!\n' + url);
+                showToast('Share link copied to clipboard!');
+            } else {
+                window.prompt('Copy this share link:', url);
+            }
+        } catch (error: any) {
+            const detail = error?.response?.data?.detail || error?.response?.data?.error || error?.message || 'Unknown error';
+            console.error('Share error:', detail, error);
+            showToast(`Failed to share: ${detail}`);
         }
     };
 
@@ -236,7 +329,7 @@ export default function TimetablePage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#F5E6D3] font-sans flex flex-col items-center justify-between">
+        <div className="h-screen bg-[#F5E6D3] font-sans flex flex-col justify-between overflow-hidden items-center">
             {/* Toast */}
             {toast && (
                 <div className="fixed top-8 right-8 z-[100] bg-[#1a1a2e] text-white px-8 py-4 rounded-2xl shadow-2xl text-[14px] font-bold animate-[slideIn_0.3s_ease] border border-white/10">
@@ -245,21 +338,14 @@ export default function TimetablePage() {
             )}
 
 
-            <div className="w-[95%] max-w-[1400px] bg-[#FFFBF0] rounded-[32px] p-8 my-8 pb-4 shadow-sm">
-                <div className="flex items-center gap-4 pb-6 ml-2">
+            <div className="w-[98%] max-w-[1800px] flex-1 min-h-0 flex flex-col bg-[#FFFBF0] rounded-[32px] p-[clamp(16px,2vw,32px)] my-[clamp(12px,2vh,32px)] pb-4 shadow-sm mx-auto">
+                <div className="flex items-center gap-4 pb-4 ml-2 shrink-0">
                     <h1 className="text-[26px] font-bold text-black">Timetables Generated</h1>
-                    {timetableTitle && (
-                        <div className="bg-blue-100 border-2 border-blue-400 rounded-lg px-4 py-2 flex items-center gap-2">
-                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            <span className="text-blue-800 font-semibold text-sm">Editing: {timetableTitle}</span>
-                        </div>
-                    )}
+
                 </div>
 
                 {/* Main Table Container */}
-                <div className="bg-white rounded-[16px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] overflow-x-auto border border-white" id="timetable-grid">
+                <div className="bg-white rounded-[16px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] overflow-auto border border-white flex-1 min-h-0 custom-scrollbar" id="timetable-grid">
                     <div id="rat"> <table className="w-full border-collapse bg-white overflow-hidden text-center rounded-[16px]">
                         <thead>
                             <tr className="border-b-[2px] border-white">
@@ -367,7 +453,7 @@ export default function TimetablePage() {
                     </table>
                     </div>
                     {/* Pagination & Action Controls */}
-                    <div className="flex flex-wrap items-center justify-between p-3 py-2 mt-4 mb-1">
+                    <div className="flex flex-wrap items-center justify-between p-3 py-2 mt-auto mb-1 gap-3 shrink-0">
                         {/* Pagination */}
                         <div className="flex items-center gap-1 bg-[#A0C4FF]/80 p-2 rounded-xl shadow-sm">
                             <button
@@ -401,7 +487,7 @@ export default function TimetablePage() {
                         </div>
 
                         {/* Action Bar */}
-                        <div className="flex items-center gap-4">
+                        <div className="flex flex-wrap items-center gap-3">
                             <button
                                 onClick={handleShare}
                                 className="flex items-center gap-2 bg-[#A0C4FF] hover:bg-[#8ab2f2] text-black font-semibold py-2.5 px-6 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 text-[14px]"
@@ -417,7 +503,13 @@ export default function TimetablePage() {
                                 Download
                             </button>
                             <button
-                                onClick={() => setShowSaveModal(true)}
+                                onClick={() => {
+                                    if (!session?.user?.email) {
+                                        setShowLoginModal(true);
+                                        return;
+                                    }
+                                    setShowSaveModal(true);
+                                }}
                                 disabled={isSaving}
                                 className="flex items-center gap-2 bg-[#F9A8D4]/60 hover:bg-[#F9A8D4]/80 text-black font-semibold py-2.5 px-6 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 text-[14px]"
                             >
@@ -430,8 +522,8 @@ export default function TimetablePage() {
             </div>
 
             {/* Bottom Navigation */}
-            <div className="bg-white border-t border-gray-300 py-4 px-8 shadow-lg animate-lucid-fade-up-delayed w-full mt-auto">
-                <div className="flex items-center justify-between max-w-[1400px] mx-auto">
+            <div className="bg-white border-t border-gray-300 py-4 px-[clamp(16px,2vw,32px)] shadow-lg animate-lucid-fade-up-delayed w-full mt-auto shrink-0">
+                <div className="flex flex-wrap items-center justify-between max-w-[1800px] mx-[1%] lg:mx-auto gap-3">
                     <div className="flex items-center gap-3">
                         {session?.user?.image ? (
                             <img src={session.user.image} alt="User avatar" className="w-10 h-10 rounded-full" referrerPolicy="no-referrer" />
@@ -441,7 +533,7 @@ export default function TimetablePage() {
                         <span className="text-gray-700 text-sm font-semibold">{session?.user?.name || "Guest"}</span>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                         {[1, 2, 3, 4].map((num) => (
                             <button
                                 key={num}
@@ -461,15 +553,20 @@ export default function TimetablePage() {
                     <div className="flex gap-3">
                         <button
                             onClick={() => {
-                                // Keep editing state when going back to make more changes
-                                router.push('/courses');
+                                router.back();
                             }}
                             className="px-8 py-2.5 border-2 border-gray-400 rounded-lg font-semibold text-sm hover:bg-gray-50 text-black transition cursor-pointer"
                         >
                             Previous
                         </button>
                         <button
-                            onClick={() => router.push('/saved')}
+                            onClick={() => {
+                                if (!session?.user?.email) {
+                                    setShowLoginModal(true);
+                                    return;
+                                }
+                                router.push('/saved');
+                            }}
                             className="px-10 py-2.5 rounded-lg font-semibold text-sm bg-[#A0C4FF] hover:bg-[#90B4EF] text-black transition-all duration-200 cursor-pointer"
                         >
                             Next
@@ -526,6 +623,11 @@ export default function TimetablePage() {
                 </div>
             )}
 
+            {/* Login Modal */}
+            {showLoginModal && (
+                <LoginModal onClose={() => setShowLoginModal(false)} callbackUrl="/timetable" />
+            )}
+
             {/* Save Modal */}
             {showSaveModal && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowSaveModal(false)}>
@@ -552,7 +654,7 @@ export default function TimetablePage() {
                             <button
                                 onClick={() => {
                                     setShowSaveModal(false);
-                                    handleSave(false, timetableTitle);
+                                    handleSave(timetableTitle);
                                 }}
                                 disabled={isSaving || !timetableTitle.trim()}
                                 className="px-6 py-2.5 rounded-xl font-bold bg-[#A0C4FF] text-black hover:bg-[#8ab2f2] transition-colors disabled:opacity-50"

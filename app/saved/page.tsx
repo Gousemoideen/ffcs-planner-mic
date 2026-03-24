@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
@@ -8,7 +8,9 @@ import Image from 'next/image';
 import { getCourseType } from '@/lib/course_codes_map';
 import { fullCourseData } from '@/lib/type';
 import { useTimetable } from '@/lib/TimeTableContext';
+import { exportToPDF } from '@/lib/exportToPDF';
 import './saved.css';
+
 
 /* ── Slot → timetable grid mapping ── */
 const THEORY_SLOTS: Record<string, [number, number]> = {};
@@ -41,8 +43,8 @@ const THEORY_TIMES = [
 ];
 
 const SLOT_COLORS = [
-    '#A0C4FF', '#CAFFD0', '#E9D5FF', '#FEF08A', '#FFD6E0',
-    '#BDD7FF', '#B8F0E0', '#FFDAB9', '#C4B5FD', '#A7F3D0',
+    '#93C5FD', '#86EFAC', '#C4B5FD', '#FDE68A', '#FCA5A5',
+    '#7DD3FC', '#6EE7B7', '#FCD34D', '#DDD6FE', '#99F6E4',
 ];
 
 function getSlotColor(code: string, allCodes: string[]): string {
@@ -101,7 +103,7 @@ function convertTimetableToCoursePreferences(tt: TimetableEntry): fullCourseData
             });
         }
         const course = courseMap.get(key)!;
-        
+
         if (!course.slots.has(entry.slot)) {
             course.slots.set(entry.slot, []);
         }
@@ -128,28 +130,6 @@ function convertTimetableToCoursePreferences(tt: TimetableEntry): fullCourseData
     return result;
 }
 
-/* ── Mock timetables for UI preview when no real data ── */
-const MOCK_SLOTS = [
-    { slot: 'A1+A2', courseCode: 'MAT201', courseName: 'Mathematics I', facultyName: 'Faculty A' },
-    { slot: 'B1+B2', courseCode: 'PHY201', courseName: 'Physics I', facultyName: 'Faculty B' },
-    { slot: 'C1+C2', courseCode: 'CHE201', courseName: 'Chemistry', facultyName: 'Faculty C' },
-    { slot: 'D1+D2', courseCode: 'CSE201', courseName: 'Programming', facultyName: 'Faculty D' },
-    { slot: 'E1+E2', courseCode: 'ENG201', courseName: 'English', facultyName: 'Faculty E' },
-    { slot: 'F1+F2', courseCode: 'ECO201', courseName: 'Economics', facultyName: 'Faculty F' },
-    { slot: 'G1+G2', courseCode: 'MGT201', courseName: 'Management', facultyName: 'Faculty G' },
-    { slot: 'TA1+TA2', courseCode: 'HUM201', courseName: 'Humanities', facultyName: 'Faculty H' },
-    { slot: 'TB1+TB2', courseCode: 'SOC201', courseName: 'Sociology', facultyName: 'Faculty I' },
-    { slot: 'TC1+TC2', courseCode: 'BIO201', courseName: 'Biology', facultyName: 'Faculty J' },
-    { slot: 'L1+L2', courseCode: 'PHY201L', courseName: 'Physics Lab', facultyName: 'Faculty B' },
-    { slot: 'L7+L8', courseCode: 'CHE201L', courseName: 'Chem Lab', facultyName: 'Faculty C' },
-    { slot: 'L19+L20', courseCode: 'CSE201L', courseName: 'CS Lab', facultyName: 'Faculty D' },
-];
-const MOCK_TIMETABLES: TimetableEntry[] = [
-    { _id: 'mock1', title: 'Timetable set 1', isPublic: false, createdAt: new Date('2026-02-28T17:33:00').toISOString(), slots: MOCK_SLOTS },
-    { _id: 'mock2', title: 'Timetable set 2', isPublic: false, createdAt: new Date('2026-02-28T17:33:00').toISOString(), slots: MOCK_SLOTS },
-    { _id: 'mock3', title: 'Timetable set 3', isPublic: false, createdAt: new Date('2026-02-28T17:33:00').toISOString(), slots: MOCK_SLOTS },
-];
-
 /* ── Main Page ── */
 export default function SavedPage() {
     const router = useRouter();
@@ -157,8 +137,7 @@ export default function SavedPage() {
     const userEmail = session?.user?.email;
     const { setTimetableData } = useTimetable();
 
-    const [timetables, setTimetables] = useState<TimetableEntry[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [timetables, setTimetables] = useState<TimetableEntry[] | null>(null);
     const [selectedTT, setSelectedTT] = useState<TimetableEntry | null>(null);
     const [viewMode, setViewMode] = useState<'list' | 'view'>('list');
 
@@ -169,15 +148,15 @@ export default function SavedPage() {
     const [toast, setToast] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
 
+    // Unique value per mount — ensures the fetch effect re-runs every time
+    // this component mounts, even if userEmail/status haven't changed
+    const [mountId] = useState(() => Date.now());
+
+    // Derived loading: true while session is loading OR while auth is ready but fetch hasn't returned yet
+    const loading = status === 'loading' || (status === 'authenticated' && timetables === null);
+
     function scrollLeft() { scrollRef.current?.scrollBy({ left: -380, behavior: 'smooth' }); }
     function scrollRight() { scrollRef.current?.scrollBy({ left: 380, behavior: 'smooth' }); }
-
-    // Clear any existing editing state when page loads
-    useEffect(() => {
-        deleteCookie('editingTimetableId');
-        deleteCookie('editingTimetableTitle');
-        setTimetableData(null); // Clear timetable context for fresh generation
-    }, [setTimetableData]);
 
     useEffect(() => {
         if (status === 'unauthenticated') {
@@ -185,21 +164,16 @@ export default function SavedPage() {
         }
     }, [status, router]);
 
+    // Fetch timetables — runs on every mount (mountId is unique per mount)
+    // and whenever userEmail or auth status becomes available
     useEffect(() => {
-        if (!userEmail) return;
-        async function load() {
-            setLoading(true);
-            try {
-                const data = await fetchTimetablesByOwner(userEmail!);
-                setTimetables(data);
-            } catch {
-                setTimetables([]);
-            } finally {
-                setLoading(false);
-            }
-        }
-        void load();
-    }, [userEmail]);
+        if (status !== 'authenticated' || !userEmail) return;
+        let cancelled = false;
+        fetchTimetablesByOwner(userEmail)
+            .then(data => { if (!cancelled) setTimetables(data); })
+            .catch(() => { if (!cancelled) setTimetables([]); });
+        return () => { cancelled = true; };
+    }, [userEmail, status, mountId]);
 
     const showToast = useCallback((msg: string) => {
         setToast(msg);
@@ -209,43 +183,58 @@ export default function SavedPage() {
     /* ── Handlers ── */
     function handleEdit(tt: TimetableEntry) {
         if (tt._id.startsWith('mock')) return;
-        
+
         // Clear timetable context for fresh generation
         setTimetableData(null);
-        
+
         // Convert timetable to course preferences format
         const coursePreferences = convertTimetableToCoursePreferences(tt);
-        
+
         // Save to cookie
         setCookie('preferenceCourses', JSON.stringify(coursePreferences));
-        
+
         // Store the timetable ID being edited
         setCookie('editingTimetableId', tt._id);
-        setCookie('editingTimetableTitle', tt.title);
-        
+
         // Navigate to courses page
         router.push('/courses');
     }
 
     async function handleDelete() {
         if (!selectedTT) return;
-        await axios.delete(`/api/timetables/${selectedTT._id}`);
-        setTimetables(prev => prev.filter(t => t._id !== selectedTT._id));
-        setDeleteOpen(false);
-        setSelectedTT(null);
-        setViewMode('list');
-        showToast('Timetable deleted successfully');
+        if (selectedTT._id.startsWith('mock')) {
+            setDeleteOpen(false);
+            showToast('Save a real timetable first — these are just preview cards.');
+            return;
+        }
+        try {
+            await axios.delete(`/api/timetables/${selectedTT._id}`);
+            setTimetables(prev => (prev ?? []).filter(t => t._id !== selectedTT._id));
+            setDeleteOpen(false);
+            setSelectedTT(null);
+            setViewMode('list');
+            showToast('Timetable deleted successfully');
+        } catch {
+            setDeleteOpen(false);
+            showToast('Failed to delete timetable. Please try again.');
+        }
     }
 
     async function handleRename() {
         if (!selectedTT || !renameValue.trim()) return;
-        await axios.patch(`/api/timetables/${selectedTT._id}`, { title: renameValue });
-        setTimetables(prev =>
-            prev.map(t => (t._id === selectedTT._id ? { ...t, title: renameValue } : t))
-        );
-        if (selectedTT) setSelectedTT({ ...selectedTT, title: renameValue });
-        setRenameOpen(false);
-        showToast('Timetable renamed');
+        try {
+            await axios.patch(`/api/timetables/${selectedTT._id}`, { title: renameValue });
+            setTimetables(prev =>
+                (prev ?? []).map(t => (t._id === selectedTT._id ? { ...t, title: renameValue } : t))
+            );
+            if (selectedTT) setSelectedTT({ ...selectedTT, title: renameValue });
+            setRenameOpen(false);
+            showToast('Timetable renamed');
+        } catch (error: any) {
+            const detail = error?.response?.data?.detail || error?.response?.data?.error || error?.message || 'Unknown error';
+            console.error('Rename error:', detail, error);
+            showToast(`Failed to rename: ${detail}`);
+        }
     }
 
     async function handleTogglePublic() {
@@ -253,36 +242,55 @@ export default function SavedPage() {
         const newState = !selectedTT.isPublic;
         await axios.patch(`/api/timetables/${selectedTT._id}`, { isPublic: newState });
         setTimetables(prev =>
-            prev.map(t => (t._id === selectedTT._id ? { ...t, isPublic: newState } : t))
+            (prev ?? []).map(t => (t._id === selectedTT._id ? { ...t, isPublic: newState } : t))
         );
         setSelectedTT({ ...selectedTT, isPublic: newState });
         showToast(newState ? 'Timetable is now public' : 'Timetable is now private');
     }
 
+    async function copyToClipboard(text: string): Promise<boolean> {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch {
+                // Fall through to fallback
+            }
+        }
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            return ok;
+        } catch {
+            return false;
+        }
+    }
+
     async function handleCopyLink() {
         if (!selectedTT) return;
-        if (!selectedTT.isPublic) {
-            await axios.patch(`/api/timetables/${selectedTT._id}`, { isPublic: true });
-            setSelectedTT({ ...selectedTT, isPublic: true });
-            setTimetables(prev =>
-                prev.map(t => (t._id === selectedTT._id ? { ...t, isPublic: true } : t))
-            );
+        try {
+            const { data } = await axios.get(`/api/timetables/${selectedTT._id}`);
+            const url = `${window.location.origin}/share/${data.shareId}`;
+            const copied = await copyToClipboard(url);
+            if (copied) {
+                showToast('Share link copied to clipboard!');
+            } else {
+                window.prompt('Copy this share link:', url);
+            }
+        } catch {
+            showToast('Failed to copy share link. Please try again.');
         }
-        const { data } = await axios.get(`/api/timetables/${selectedTT._id}`);
-        const url = `${window.location.origin}/share/${data.shareId}`;
-        await navigator.clipboard.writeText(url);
-        showToast('Share link copied to clipboard!');
     }
 
-    if (status === 'loading') {
-        return (
-            <div className="loading-screen">
-                <div className="spinner spinner-lg" />
-            </div>
-        );
-    }
-
-    const displayTimetables = timetables.length > 0 ? timetables : MOCK_TIMETABLES;
+    const displayTimetables = timetables ?? [];
 
     return (
         <div className="saved-page">
@@ -298,12 +306,21 @@ export default function SavedPage() {
                 <>
                     {/* Main content */}
                     <div className="main-content">
-                        <h1 className="page-title">View Your Saved Timetable</h1>
+                        <h1 className="page-title" style={{ marginBottom: '1rem', marginLeft: '2rem' }}>View Your Saved Timetable</h1>
 
                         <div className="cards-outer">
                             {loading ? (
                                 <div className="spinner-center">
                                     <div className="spinner spinner-md" />
+                                </div>
+                            ) : displayTimetables.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-icon">📅</div>
+                                    <h2 className="empty-title">No saved timetables yet</h2>
+                                    <p className="empty-desc">Go through the steps to build and save your first timetable.</p>
+                                    <button onClick={() => router.push('/preferences')} className="empty-btn">
+                                        Create a Timetable
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="cards-scroller-wrapper">
@@ -322,13 +339,11 @@ export default function SavedPage() {
                                                     }}
                                                     onEdit={() => handleEdit(tt)}
                                                     onRename={() => {
-                                                        if (tt._id.startsWith('mock')) return;
                                                         setSelectedTT(tt);
                                                         setRenameValue(tt.title);
                                                         setRenameOpen(true);
                                                     }}
                                                     onDelete={() => {
-                                                        if (tt._id.startsWith('mock')) return;
                                                         setSelectedTT(tt);
                                                         setDeleteOpen(true);
                                                     }}
@@ -380,7 +395,7 @@ export default function SavedPage() {
                         </div>
 
                         <div className="nav-btns">
-                            <button onClick={() => router.push('/timetable')} className="btn-prev">Previous</button>
+                            <button onClick={() => router.back()} className="btn-prev">Previous</button>
                             <button disabled className="btn-next" style={{ opacity: 0.4, cursor: 'not-allowed' }}>Next</button>
                         </div>
                     </div>
@@ -395,6 +410,7 @@ export default function SavedPage() {
                     onTogglePublic={handleTogglePublic}
                     session={session}
                     router={router}
+                    showToast={showToast}
                 />
             ) : null}
 
@@ -542,8 +558,11 @@ function TimetableDetailView({
     onBack,
     onDelete,
     onCopyLink,
+    onRename,
+    onTogglePublic,
     session,
     router,
+    showToast,
 }: {
     tt: TimetableEntry;
     onBack: () => void;
@@ -551,10 +570,9 @@ function TimetableDetailView({
     onDelete: () => void;
     onCopyLink: () => void;
     onTogglePublic: () => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     session: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     router: any;
+    showToast: (msg: string) => void;
 }) {
     const allCodes = tt.slots.map(s => s.courseCode);
 
@@ -587,14 +605,26 @@ function TimetableDetailView({
 
     const THEORY_TIME_LABELS = [
         '8:00am-\n8:50am', '8:55am-\n9:45am', '9:50am-\n10:40am', '10:45am-\n11:35am',
-        '11:40am-\n12:30pm', '12:30-\n1:20pm', '2:00pm-\n2:50pm', '2:55pm-\n3:45pm',
+        '11:40am-\n12:30pm', '12:30pm-\n1:20pm', '2:00pm-\n2:50pm', '2:55pm-\n3:45pm',
         '3:50pm-\n4:40pm', '4:45pm-\n5:35pm', '5:40pm-\n6:30pm', '6:35pm-\n7:25pm', '',
     ];
     const LAB_TIME_LABELS = [
         '8:00am-\n8:50am', '8:50am-\n9:40am', '9:50am-\n10:40am', '10:40am-\n11:30am',
-        '11:40am-\n12:30pm', '12:30-\n1:20pm', '2:00pm-\n2:50pm', '2:50pm-\n3:40pm',
+        '11:40am-\n12:30pm', '12:30pm-\n1:20pm', '2:00pm-\n2:50pm', '2:50pm-\n3:40pm',
         '3:50pm-\n4:40pm', '4:40pm-\n5:30pm', '5:40pm-\n6:30pm', '6:30pm-\n7:20pm', '',
     ];
+    const LUNCH_LETTERS = ['L', 'U', 'N', 'C', 'H'];
+
+    const handleDownload = async () => {
+        showToast('Preparing PDF...');
+        try {
+            await exportToPDF('saved-timetable-grid', `${tt.title}.pdf`);
+            showToast('PDF downloaded successfully!');
+        } catch (error) {
+            console.error('PDF error:', error);
+            showToast('Failed to generate PDF.');
+        }
+    };
 
     return (
         <div className="dv-page">
@@ -605,11 +635,11 @@ function TimetableDetailView({
                     <button onClick={onBack} className="dv-back-btn">←</button>
                     <h1 className="dv-title">{tt.title}</h1>
                     <div className="dv-title-actions">
-                        <button onClick={onCopyLink} className="dv-icon-btn" title="Share">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
-                        </button>
-                        <button onClick={onCopyLink} className="dv-icon-btn" title="Copy link">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+                        <button onClick={onRename} className="dv-icon-btn" title="Rename">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
                         </button>
                         <button onClick={onDelete} className="dv-icon-btn dv-icon-btn-red" title="Delete">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E11D48" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
@@ -619,67 +649,134 @@ function TimetableDetailView({
 
                 {/* Timetable grid */}
                 <div className="dv-grid-box">
-                    <div className="dv-grid-scroll">
+                    <div className="dv-grid-scroll" id="saved-timetable-grid">
                         <table className="dv-table">
                             <thead>
                                 <tr>
-                                    <th className="dv-th-day-header" rowSpan={2}></th>
-                                    <th className="dv-th-section" colSpan={13}>Theory Hours</th>
-                                    <th className="dv-th-section" colSpan={13}>Lab Hours</th>
+                                    <th className="dv-th-row-label dv-th-label-theory">Theory Hours</th>
+                                    {THEORY_TIME_LABELS.slice(0, 6).map((t, i) => (
+                                        <th key={`th-${i}`} className="dv-th-time dv-th-time-theory">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    ))}
+                                    <th className="dv-th-lunch" rowSpan={2}></th>
+                                    {THEORY_TIME_LABELS.slice(6).map((t, i) => (
+                                        <th key={`th-${i + 6}`} className="dv-th-time dv-th-time-theory">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    ))}
                                 </tr>
                                 <tr>
-                                    {THEORY_TIME_LABELS.map((t, i) => (
-                                        <th key={`th-${i}`} className="dv-th-time">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    <th className="dv-th-row-label dv-th-label-lab">Lab Hours</th>
+                                    {LAB_TIME_LABELS.slice(0, 6).map((t, i) => (
+                                        <th key={`lh-${i}`} className="dv-th-time dv-th-time-lab">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
                                     ))}
-                                    {LAB_TIME_LABELS.map((t, i) => (
-                                        <th key={`lh-${i}`} className="dv-th-time">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    {/* Lunch th covered by rowSpan above */}
+                                    {LAB_TIME_LABELS.slice(6).map((t, i) => (
+                                        <th key={`lh-${i + 6}`} className="dv-th-time dv-th-time-lab">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {DAYS.map((day, rowIdx) => (
-                                    <tr key={day}>
-                                        <td className="dv-td-day">{day}</td>
-                                        {/* Theory cells */}
-                                        {theoryGrid[rowIdx].map((cell, colIdx) => (
-                                            <td key={`t-${colIdx}`} className="dv-td">
-                                                {cell ? (
-                                                    <div className="dv-cell-filled" style={{ backgroundColor: getSlotColor(cell.code, allCodes) }}>
+                                    <React.Fragment key={day}>
+                                        {/* Theory row */}
+                                        <tr>
+                                            <td className="dv-td-day" rowSpan={2}>{day}</td>
+                                            {theoryGrid[rowIdx].slice(0, 6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`t-${colIdx}`} className="dv-td dv-td-theory-filled">
                                                         <div className="dv-cell-slot">{theoryLabels[rowIdx]?.[colIdx]}</div>
                                                         <div className="dv-cell-code">{cell.code}</div>
                                                         <div className="dv-cell-faculty">{cell.facultyName}</div>
-                                                    </div>
+                                                    </td>
                                                 ) : (
-                                                    <div className="dv-cell-empty">{theoryLabels[rowIdx]?.[colIdx]}</div>
-                                                )}
+                                                    <td key={`t-${colIdx}`} className="dv-td dv-td-theory-empty">
+                                                        <div className="dv-cell-empty">{theoryLabels[rowIdx]?.[colIdx]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                            {/* Lunch column spans theory + lab rows */}
+                                            <td className="dv-td-lunch" rowSpan={2}>
+                                                <span className="dv-lunch-label">{LUNCH_LETTERS[rowIdx]}</span>
                                             </td>
-                                        ))}
-                                        {/* Lab cells */}
-                                        {labGrid[rowIdx].map((cell, colIdx) => (
-                                            <td key={`l-${colIdx}`} className="dv-td">
-                                                {cell ? (
-                                                    <div className="dv-cell-filled" style={{ backgroundColor: getSlotColor(cell.code, allCodes) }}>
+                                            {theoryGrid[rowIdx].slice(6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`t-${colIdx + 6}`} className="dv-td dv-td-theory-filled">
+                                                        <div className="dv-cell-slot">{theoryLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                        <div className="dv-cell-code">{cell.code}</div>
+                                                        <div className="dv-cell-faculty">{cell.facultyName}</div>
+                                                    </td>
+                                                ) : (
+                                                    <td key={`t-${colIdx + 6}`} className="dv-td dv-td-theory-empty">
+                                                        <div className="dv-cell-empty">{theoryLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                        </tr>
+                                        {/* Lab row — day + lunch covered by rowSpan */}
+                                        <tr>
+                                            {labGrid[rowIdx].slice(0, 6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`l-${colIdx}`} className="dv-td dv-td-lab-filled">
                                                         <div className="dv-cell-slot">{labLabels[rowIdx]?.[colIdx]}</div>
                                                         <div className="dv-cell-code">{cell.code}</div>
                                                         <div className="dv-cell-faculty">{cell.facultyName}</div>
-                                                    </div>
+                                                    </td>
                                                 ) : (
-                                                    <div className="dv-cell-empty">{labLabels[rowIdx]?.[colIdx]}</div>
-                                                )}
-                                            </td>
-                                        ))}
-                                    </tr>
+                                                    <td key={`l-${colIdx}`} className="dv-td dv-td-lab-empty">
+                                                        <div className="dv-cell-empty">{labLabels[rowIdx]?.[colIdx]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                            {/* Lunch td covered by rowSpan from theory row */}
+                                            {labGrid[rowIdx].slice(6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`l-${colIdx + 6}`} className="dv-td dv-td-lab-filled">
+                                                        <div className="dv-cell-slot">{labLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                        <div className="dv-cell-code">{cell.code}</div>
+                                                        <div className="dv-cell-faculty">{cell.facultyName}</div>
+                                                    </td>
+                                                ) : (
+                                                    <td key={`l-${colIdx + 6}`} className="dv-td dv-td-lab-empty">
+                                                        <div className="dv-cell-empty">{labLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                        </tr>
+                                    </React.Fragment>
                                 ))}
                             </tbody>
                         </table>
                     </div>
                     {/* Share / Download buttons */}
                     <div className="dv-grid-actions">
-                        <button onClick={onCopyLink} className="dv-share-btn">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
-                            Share
-                        </button>
-                        <button className="dv-download-btn">
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                                className={tt.isPublic ? 'dv-share-active-btn' : 'dv-share-btn'}
+                                onClick={onTogglePublic}
+                                title={tt.isPublic ? "Unshare Timetable" : "Share Timetable"}
+                            >
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="18" cy="5" r="3" />
+                                    <circle cx="6" cy="12" r="3" />
+                                    <circle cx="18" cy="19" r="3" />
+                                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                                </svg>
+                                {tt.isPublic ? 'Shared (Public)' : 'Share'}
+                            </button>
+                            {tt.isPublic && (
+                                <button
+                                    className="dv-share-btn"
+                                    onClick={onCopyLink}
+                                    title="Copy Public Link"
+                                >
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                    </svg>
+                                    Copy Link
+                                </button>
+                            )}
+                        </div>
+                        <button className="dv-download-btn" onClick={handleDownload} >
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                             Download
                         </button>
@@ -706,7 +803,7 @@ function TimetableDetailView({
                                     <td>{code}</td>
                                     <td>{info.courseName}</td>
                                     <td>{info.facultyName}</td>
-                                    <td>3</td>
+                                    <td>—</td>
                                 </tr>
                             ))}
                         </tbody>
