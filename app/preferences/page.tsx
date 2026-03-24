@@ -289,8 +289,8 @@ export default function PreferencesPage() {
     };
 
     const handleAddAnotherProfessor = () => {
-        setCurrentStep(5);
-        setCookie('preferenceStep', '5');
+        setCurrentStep(3);
+        setCookie('preferenceStep', '3');
     };
 
     const handleDepartmentSelect = (dept: string) => {
@@ -629,52 +629,56 @@ export default function PreferencesPage() {
                                     </div>
 
                                     {/* Navigation arrows within active panel */}
-                                     <div className="flex justify-between mt-auto pt-4 shrink-0 px-2 pb-2">
-                                         <button
-                                             onClick={(e) => { e.stopPropagation(); handlePrevious(); }}
-                                             style={{ visibility: currentStep === 1 ? 'hidden' : 'visible' }}
-                                             className="w-11 h-11 flex items-center justify-center rounded-[10px] bg-white text-gray-900 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
-                                         >
-                                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                                         </button>
-                                         
-                                         {currentStep === 6 ? (
-                                             <div className="flex w-full gap-2 px-2">
-                                                 <button
-                                                     onClick={(e) => { e.stopPropagation(); handleAddAnotherProfessor(); }}
-                                                     title={'Reset to Step 5 and add another professor'}
-                                                     className="flex-1 px-3 py-2 rounded-lg font-bold text-sm bg-white text-blue-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
-                                                 >
-                                                     + Add another
-                                                 </button>
-                                                 <button
-                                                     onClick={(e) => {
-                                                         e.stopPropagation();
-                                                         saveCurrentSelection();
-                                                         router.push('/courses');
-                                                     }}
-                                                     title={'Save current preference and view all courses'}
-                                                     className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
-                                                 >
-                                                     Save & Continue →
-                                                 </button>
-                                             </div>
-                                         ) : (
-                                             <button
-                                                 onClick={(e) => { e.stopPropagation(); handleNext(); }}
-                                                 disabled={!canProceed()}
-                                                 className={`w-11 h-11 flex items-center justify-center rounded-[10px] bg-white text-gray-900 shadow-sm transition-all duration-200 cursor-pointer ${!canProceed() ? 'opacity-40 cursor-not-allowed' : 'hover:shadow-md'}`}
-                                             >
-                                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                                             </button>
-                                         )}
-                                     </div>
-                                 </div>
-                             ) : (
-                                 <div className="h-full flex flex-col items-center py-6 lg:py-8">
-                                     <span className="text-2xl font-bold text-black mb-4">{stepNum}</span>
-                                     <div
-                                         className="text-lg lg:text-xl font-bold tracking-wide flex-1 flex items-center justify-center whitespace-nowrap"
+                                    <div className="flex justify-between mt-24 gap-2">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handlePrevious(); }}
+                                            disabled={currentStep === 1}
+                                            className={`px-4 py-2 rounded-lg bg-white font-bold text-xl cursor-pointer ${currentStep === 1
+                                                ? 'opacity-40 cursor-not-allowed'
+                                                : 'hover:shadow-md hover:-translate-y-0.5 transition-all duration-200'
+                                                }`}
+                                        >
+                                            ←
+                                        </button>
+                                        {currentStep === 6 ? (
+                                            <div className="flex w-full gap-2">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleAddAnotherProfessor(); }}
+                                                    title={'Reset to Step 3 and add another course/professor'}
+                                                    className="flex-1 px-3 py-2 rounded-lg font-bold text-sm bg-[#FFF7ED] text-[#EA580C] hover:bg-[#FFEDD5] hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 border border-[#FDBA74] cursor-pointer"
+                                                >
+                                                    + Add another
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        saveCurrentSelection();
+                                                        router.push('/courses');
+                                                    }}
+                                                    title={'Save current preference and view all courses'}
+                                                    className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-[#10B981] text-white hover:bg-[#059669] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+                                                >
+                                                    Save & Continue →
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleNext(); }}
+                                                disabled={!canProceed()}
+                                                className={`px-4 py-2 rounded-lg bg-white font-bold text-xl cursor-pointer ${!canProceed()
+                                                    ? 'opacity-40 cursor-not-allowed'
+                                                    : 'hover:shadow-md hover:-translate-y-0.5 transition-all duration-200'
+                                                    }`}
+                                            >
+                                                →
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="h-full flex items-center justify-center p-2">
+                                    <div
+                                        className="text-xl font-bold tracking-wide whitespace-nowrap"
                                         style={{
                                             writingMode: 'vertical-rl',
                                             textOrientation: 'mixed',

@@ -21,51 +21,6 @@
   justify-content: center;
 }
 
-/* ── Empty state ── */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 60px 24px;
-  text-align: center;
-}
-
-.empty-icon {
-  font-size: 52px;
-  line-height: 1;
-}
-
-.empty-title {
-  font-size: 22px;
-  font-weight: 800;
-  color: #111827;
-}
-
-.empty-desc {
-  font-size: 15px;
-  color: #6B7280;
-  max-width: 340px;
-}
-
-.empty-btn {
-  margin-top: 8px;
-  padding: 12px 28px;
-  background: #A0C4FF;
-  color: #1E3A8A;
-  font-weight: 700;
-  font-size: 15px;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.empty-btn:hover {
-  background: #8ab2f2;
-}
-
 /* ── Spinners ── */
 .spinner {
   border-radius: 50%;
@@ -118,8 +73,6 @@
   flex-direction: column;
   width: 100%;
   padding: 24px 0 0 0;
-  min-height: 0;
-  overflow-y: auto;
 }
 
 .page-title {
@@ -154,10 +107,9 @@
 
 /* ── White outer box (cards + arrows) ── */
 .white-cards-outer {
-  background: #FFFBF0;
+  background: #ffffff;
   border-radius: 16px;
   padding: 28px 24px 24px 24px;
-  margin-bottom: 24px;
   margin-left: 0;
   display: flex;
   flex-direction: column;
@@ -180,8 +132,7 @@
   display: flex;
   justify-content: center;
   gap: 12px;
-  margin-top: 20px;
-  padding: 0 24px;
+  margin-top: 40px;
 }
 
 .arrow-btn {
@@ -195,7 +146,6 @@
   border: none;
   cursor: pointer;
   transition: background 0.2s;
-  flex-shrink: 0;
 }
 
 .arrow-btn:hover {
@@ -204,40 +154,21 @@
 
 /* ── Bottom nav bar ── */
 .bottom-nav {
-  padding: 0;
-  margin: 0 24px 24px 24px;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 16px;
-}
-
-.bottom-nav > .user-section {
-  justify-self: start;
-}
-
-.bottom-nav > .step-pills-container {
-  justify-self: center;
-}
-
-.bottom-nav > .nav-btns {
-  justify-self: end;
-}
-
-.bottom-nav-box {
-  background: #ffffff;
+  border: 1.5px solid #93C5FD;
   border-radius: 12px;
-  padding: 10px 20px;
+  background: #ffffff;
+  padding: 14px 24px;
+  margin: 0 24px 24px 24px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
 }
 
 .user-section {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: 0;
-  flex-shrink: 1;
+  min-width: 220px;
 }
 
 .avatar {
@@ -258,127 +189,127 @@
 .user-name {
   font-size: 14px;
   color: #374151;
-  font-weight: 700;
+  font-weight: 500;
   max-width: 170px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
 }
 
 .step-pills {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
 .step-pill {
-  min-width: 38px;
-  height: 38px;
-  padding: 0;
-  border-radius: 6px;
-  background: #A0C4FF;
+  min-width: 44px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: #BFDBFE;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  font-weight: 700;
-  color: #111827;
+  font-weight: 600;
+  color: #1E40AF;
   cursor: pointer;
   border: none;
 }
 
 .step-pill-saved {
-  height: 38px;
-  padding: 0 16px;
-  border-radius: 6px;
-  background: #A0C4FF;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 10px;
+  background: #BFDBFE;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  font-weight: 700;
-  color: #111827;
+  font-weight: 600;
+  color: #1E40AF;
   cursor: pointer;
   border: none;
 }
 
 .nav-btns {
   display: flex;
-  flex-wrap: wrap;
   gap: 12px;
-  min-width: 0;
+  min-width: 220px;
   justify-content: flex-end;
 }
 
 .btn-prev {
-  padding: 12px 32px;
-  border-radius: 8px;
-  border: 2px solid #A0C4FF;
+  padding: 10px 32px;
+  border-radius: 10px;
+  border: 1.5px solid #93C5FD;
   font-size: 14px;
-  font-weight: 700;
-  color: #111827;
-  background: #F1EACB;
+  font-weight: 600;
+  color: #1E3A5F;
+  background: white;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-prev:hover {
-  background: #E8DDB8;
+  background: #F0F7FF;
 }
 
 .btn-next {
-  padding: 12px 32px;
-  border-radius: 8px;
-  border: none;
-  background: #A0C4FF;
+  padding: 10px 32px;
+  border-radius: 10px;
+  border: 1.5px solid #93C5FD;
+  background: #BFDBFE;
   font-size: 14px;
-  font-weight: 700;
-  color: #111827;
+  font-weight: 600;
+  color: #1E40AF;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-next:hover {
-  background: #8ab2f2;
+  background: #93C5FD;
 }
 
 /* ═══════════════════════════
    Timetable Card
    ═══════════════════════════ */
 .tt-card {
-  border-radius: 8px;
+  border-radius: 24px;
   padding: 20px 20px 28px 20px;
-  width: clamp(280px, 30vw, 340px);
+  width: 340px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
   align-self: flex-start;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
 }
 
 .card-icons-top {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   display: flex;
-  gap: 6px;
-  z-index: 10;
+  justify-content: flex-end;
+  gap: 3px;
+  position: absolute;
+  z-index: 1;
+  right: 1vw;
+  top: 1vh;
+   
+
 }
 
 .card-icon-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   background: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #E5E7EB;
+  border: none;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: background 0.2s;
 }
 
@@ -390,16 +321,12 @@
   background: #FFF1F2;
 }
 
-.mini-grid-container {
-  position: relative;
-  margin-bottom: 20px;
-}
-
 .mini-grid {
   background: white;
-  border-radius: 8px;
-  padding: 14px 14px 44px 14px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  position: relative;
 }
 
 .mini-grid-rows {
@@ -420,24 +347,24 @@
 }
 
 .card-title {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 900;
-  color: #000000;
+  color: #111827;
   line-height: 1.2;
   margin: 0 0 4px 0;
 }
 
 .card-subtitle {
-  font-size: 13px;
-  color: #111827;
+  font-size: 14px;
+  color: #6B7280;
   font-weight: 500;
   line-height: 1.4;
   margin: 0;
 }
 
 .card-date {
-  font-size: 13px;
-  color: #111827;
+  font-size: 14px;
+  color: #6B7280;
   line-height: 1.4;
   margin: 0;
 }
@@ -449,12 +376,12 @@
 
 .card-btn {
   flex: 1;
-  padding: 12px 16px;
-  border-radius: 8px;
+  padding: 16px;
+  border-radius: 16px;
   background: white;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  color: #000000;
+  color: #1F2937;
   border: none;
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -1016,13 +943,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-height: 0;
 }
 
 /* Title row */
 .dv-title-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 14px;
 }
@@ -1099,128 +1024,53 @@
 
 .dv-table {
   width: 100%;
-  min-width: 700px;
+  min-width: 900px;
   border-collapse: collapse;
   font-size: 10px;
 }
 
-/* First-column row labels (Theory Hours / Lab Hours) */
-.dv-th-row-label {
+.dv-th-day-header {
+  width: 60px;
+}
+
+.dv-th-section {
+  background: #F9FAFB;
+  text-align: center;
   font-size: 11px;
   font-weight: 700;
   color: #374151;
-  padding: 8px 10px;
-  text-align: center;
-  border: 1px solid #D1FAE5;
-  white-space: nowrap;
-  width: 72px;
+  padding: 8px 4px;
+  border-bottom: 1.5px solid #E5E7EB;
+  border-left: 2px solid #E5E7EB;
 }
 
-.dv-th-label-theory {
-  background: #BBF7D0;
-}
-
-.dv-th-label-lab {
-  background: #FEF08A;
-}
-
-/* Time-column headers */
 .dv-th-time {
-  padding: 5px 2px;
+  padding: 4px 2px;
   text-align: center;
   font-size: 9px;
   font-weight: 500;
-  color: #374151;
-  border: 1px solid #E5E7EB;
+  color: #6B7280;
+  border-bottom: 1px solid #F3F4F6;
   min-width: 52px;
   line-height: 1.3;
   white-space: nowrap;
 }
 
-.dv-th-time-theory {
-  background: #DCFCE7;
-}
-
-.dv-th-time-lab {
-  background: #FEFCE8;
-}
-
-/* Day label cell (spans 2 rows) */
 .dv-td-day {
   font-size: 11px;
   font-weight: 700;
   color: #374151;
-  padding: 6px 10px;
-  border: 1px solid #E5E7EB;
+  padding: 6px 8px;
+  border-bottom: 1px solid #F3F4F6;
   white-space: nowrap;
   vertical-align: middle;
-  text-align: center;
-  background: #F9FAFB;
 }
 
-/* Base data cell */
 .dv-td {
   padding: 3px;
-  border: 1px solid #E5E7EB;
+  border-bottom: 1px solid #F9FAFB;
   vertical-align: middle;
   text-align: center;
-  height: 46px;
-}
-
-/* Theory empty — light green */
-.dv-td-theory-empty {
-  background: #DCFCE7;
-}
-
-/* Theory filled — darker green */
-.dv-td-theory-filled {
-  background: #86EFAC;
-  border-color: rgba(255, 255, 255, 0.6);
-}
-
-/* Lab empty — light yellow */
-.dv-td-lab-empty {
-  background: #FEFCE8;
-}
-
-/* Lab filled — darker yellow */
-.dv-td-lab-filled {
-  background: #FDE68A;
-  border-color: rgba(255, 255, 255, 0.6);
-}
-
-/* Lunch header cell */
-.dv-th-lunch {
-  background: #F3F4F6;
-  color: #6B7280;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 4px 2px;
-  text-align: center;
-  border: 1px solid #E5E7EB;
-  width: 24px;
-  min-width: 24px;
-  vertical-align: middle;
-}
-
-/* Lunch data cell */
-.dv-td-lunch {
-  background: #F3F4F6;
-  border: 1px solid #E5E7EB;
-  vertical-align: middle;
-  text-align: center;
-  width: 24px;
-  min-width: 24px;
-  padding: 2px 0;
-}
-
-.dv-lunch-label {
-  font-size: 11px;
-  font-weight: 800;
-  color: #9CA3AF;
-  display: block;
-  text-align: center;
-  letter-spacing: 0;
 }
 
 .dv-cell-filled {
@@ -1233,32 +1083,29 @@
 }
 
 .dv-cell-slot {
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 9px;
+  font-weight: 700;
   color: #1E293B;
-  margin-bottom: 2px;
 }
 
 .dv-cell-code {
-  font-size: 8.5px;
-  color: #1E293B;
-  font-weight: 600;
-  opacity: 0.9;
+  font-size: 8px;
+  color: #374151;
+  opacity: 0.85;
 }
 
 .dv-cell-faculty {
   font-size: 7px;
-  color: #374151;
-  opacity: 0.8;
+  color: #4B5563;
+  opacity: 0.75;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 54px;
-  margin: 0 auto;
+  max-width: 50px;
 }
 
 .dv-cell-empty {
-  font-size: 10px;
+  font-size: 9px;
   color: #9CA3AF;
   font-weight: 500;
 }
