@@ -144,6 +144,23 @@ const findClashes = (faculties: FacultyEntry[]): Set<string> => {
     return clashingUids;
 };
 
+// Find all courses that clash with a specific course
+const findClashesForCourse = (selectedUid: string, faculties: FacultyEntry[]): Set<string> => {
+    const selectedCourse = faculties.find(f => f.uid === selectedUid);
+    if (!selectedCourse) return new Set();
+
+    const clashingUids = new Set<string>();
+    clashingUids.add(selectedUid); // Include the selected course itself
+
+    for (let i = 0; i < faculties.length; i++) {
+        if (faculties[i].uid !== selectedUid && doSlotsClash(selectedCourse.slot, faculties[i].slot)) {
+            clashingUids.add(faculties[i].uid);
+        }
+    }
+
+    return clashingUids;
+};
+
 export default function CoursesPage() {
     const router = useRouter();
     const { data: session } = useSession();
@@ -156,6 +173,7 @@ export default function CoursesPage() {
     const [rowEffects, setRowEffects] = useState<Record<string, string>>({});
     const [isReordering, setIsReordering] = useState(false);
     const [clashingUids, setClashingUids] = useState<Set<string>>(new Set());
+    const [selectedClashUid, setSelectedClashUid] = useState<string | null>(null);
 
     const [deletedRow, setDeletedRow] = useState<{ faculty: FacultyEntry; index: number } | null>(null);
     const [showDeletedToast, setShowDeletedToast] = useState(false);
@@ -375,7 +393,7 @@ export default function CoursesPage() {
                                 </svg>
                                 <div>
                                     <h3 className="text-red-800 font-bold text-lg">Slot Clash Detected!</h3>
-                                    <p className="text-red-700 text-sm">Some courses have overlapping time slots. Courses with clashes are highlighted in red.</p>
+                                    <p className="text-red-700 text-sm">Some courses have overlapping time slots. Courses with clashes are highlighted in red. Click clashed courses to view what they are clashing with.</p>
                                 </div>
                             </div>
                         )}
@@ -417,6 +435,8 @@ export default function CoursesPage() {
                         <div>
                             {faculties.map((faculty, index) => {
                                 const hasClash = clashingUids.has(faculty.uid);
+                                const relatedClashes = selectedClashUid ? findClashesForCourse(selectedClashUid, faculties) : new Set();
+                                const isHighlighted = relatedClashes.has(faculty.uid);
                                 const isDusting = rowEffects[faculty.uid] === 'animate-dust-out';
                                 // Split combined course names and slots (both/lab types use __ separator)
                                 const nameParts = faculty.courseName.split('__');
@@ -424,23 +444,31 @@ export default function CoursesPage() {
                                 return (
                                     <div key={faculty.uid}>
                                         <div
+                                            onClick={() => {
+                                                if (clashingUids.has(faculty.uid)) {
+                                                    setSelectedClashUid(selectedClashUid === faculty.uid ? null : faculty.uid);
+                                                }
+                                            }}
                                             className={`grid grid-cols-[40px_minmax(80px,1fr)_minmax(100px,2fr)_minmax(60px,1fr)_minmax(80px,1fr)_minmax(80px,100px)] border-b border-gray-100 items-center transition-colors ${isDusting ? 'pointer-events-none' : ''
-                                                } ${hasClash ? 'bg-red-50' : 'bg-white hover:bg-gray-50'
+                                                } ${hasClash ? (isHighlighted ? 'bg-red-200 cursor-pointer' : 'bg-red-50 cursor-pointer') : 'bg-white hover:bg-gray-50'
                                                 } ${rowEffects[faculty.uid] || ''}`}
                                         >
-                                            <div className={`px-4 py-4 text-sm font-semibold ${hasClash ? 'text-red-600' : 'text-gray-800'}`}>{faculty.no}</div>
-                                            <div className={`px-4 py-4 text-sm font-bold font-mono ${hasClash ? 'text-red-600' : 'text-gray-900'}`}>{faculty.courseCode}</div>
-                                            <div className={`px-4 py-4 text-sm ${hasClash ? 'text-red-600' : 'text-gray-800'}`}>
+                                            <div className={`px-4 py-4 text-sm font-semibold ${hasClash ? (isHighlighted ? 'text-red-800' : 'text-red-600') : 'text-gray-800'}`}>{faculty.no}</div>
+                                            <div className={`px-4 py-4 text-sm font-bold font-mono ${hasClash ? (isHighlighted ? 'text-red-800' : 'text-red-600') : 'text-gray-900'}`}>{faculty.courseCode}</div>
+                                            <div className={`px-4 py-4 text-sm ${hasClash ? (isHighlighted ? 'text-red-800' : 'text-red-600') : 'text-gray-800'}`}>
                                                 {nameParts.map((n, i) => <div key={i}>{n}</div>)}
                                             </div>
-                                            <div className={`px-4 py-4 text-sm font-semibold ${hasClash ? 'text-red-600' : 'text-gray-800'}`}>
+                                            <div className={`px-4 py-4 text-sm font-semibold ${hasClash ? (isHighlighted ? 'text-red-800' : 'text-red-600') : 'text-gray-800'}`}>
                                                 {slotParts.map((s, i) => <div key={i}>{s}</div>)}
                                             </div>
-                                            <div className={`px-4 py-4 text-sm ${hasClash ? 'text-red-600' : 'text-gray-600'}`}>{faculty.facultyName}</div>
+                                            <div className={`px-4 py-4 text-sm ${hasClash ? (isHighlighted ? 'text-red-800' : 'text-red-600') : 'text-gray-600'}`}>{faculty.facultyName}</div>
                                             <div className="px-4 py-4 flex items-center gap-1">
                                                 {/* Up button */}
                                                 <button
-                                                    onClick={() => handleMoveUp(index)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleMoveUp(index);
+                                                    }}
                                                     disabled={index === 0 || isDusting || isReordering}
                                                     title="Move up"
                                                     className={`w-8 h-8 flex items-center justify-center rounded border transition-all ${index === 0 || isDusting || isReordering
@@ -452,7 +480,10 @@ export default function CoursesPage() {
                                                 </button>
                                                 {/* Down button */}
                                                 <button
-                                                    onClick={() => handleMoveDown(index)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleMoveDown(index);
+                                                    }}
                                                     disabled={index === faculties.length - 1 || isDusting || isReordering}
                                                     title="Move down"
                                                     className={`w-8 h-8 flex items-center justify-center rounded border transition-all ${index === faculties.length - 1 || isDusting || isReordering
@@ -464,7 +495,10 @@ export default function CoursesPage() {
                                                 </button>
                                                 {/* Delete button */}
                                                 <button
-                                                    onClick={() => handleRemove(index)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleRemove(index);
+                                                    }}
                                                     disabled={isDusting}
                                                     title="Remove"
                                                     className={`w-8 h-8 flex items-center justify-center rounded border transition-all ${isDusting
