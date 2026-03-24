@@ -466,7 +466,7 @@ export default function CoursesPage() {
                                 );
                             })}
                             {/* Undo row at bottom when deleted row was last */}
-                            {deletedRow && deletedRow.index >= faculties.length && (
+                            {deletedRow && faculties.length === 0 && (
                                 <div className="grid grid-cols-[40px_minmax(80px,1fr)_minmax(100px,2fr)_minmax(60px,1fr)_minmax(80px,1fr)_minmax(80px,100px)] border-b border-gray-100 bg-gray-50 items-center">
                                     <div />
                                     <div className="col-span-4 px-4 py-3 text-sm text-gray-500 italic">Subject deleted.</div>

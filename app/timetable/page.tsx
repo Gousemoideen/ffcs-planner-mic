@@ -561,7 +561,6 @@ export default function TimetablePage() {
                         </button>
                         <button
                             onClick={() => {
-                                clearPlannerClientCache({ includeEditingState: true });
                                 router.push('/saved');
                             }}
                             className="px-10 py-2.5 rounded-lg font-semibold text-sm bg-[#A0C4FF] hover:bg-[#90B4EF] text-black transition-all duration-200 cursor-pointer"

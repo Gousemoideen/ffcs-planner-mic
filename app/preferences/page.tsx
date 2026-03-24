@@ -266,9 +266,7 @@ export default function PreferencesPage() {
     };
 
     const handleDepartmentSelect = (dept: string) => {
-        setSelectedDepartments(prev =>
-            prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
-        );
+        setSelectedDepartments([dept]);
         setSelectedDomains([]);
         setSelectedSubjects([]);
         setSelectedSlots([]);
