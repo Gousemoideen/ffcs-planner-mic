@@ -67,23 +67,14 @@ export default function LandingPage() {
           {session ? (
             <div className="relative">
               <div
-                className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity select-none"
+                className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => setShowUserMenu(!showUserMenu)}
               >
-                {session.user?.image ? (
-                  <img src={session.user.image} alt="avatar" className="w-8 h-8 rounded-full object-cover flex-shrink-0" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gray-400 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                    {session.user?.name?.[0]?.toUpperCase() || 'U'}
-                  </div>
+                {session.user?.image && (
+                  <img src={session.user.image} alt="avatar" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
                 )}
-                <span className="font-semibold text-black">{session.user?.name}</span>
-                <svg
-                  className={`w-4 h-4 text-black transition-transform duration-200 flex-shrink-0 ${showUserMenu ? 'rotate-180' : ''}`}
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
+                <span className="font-semibold text-black pr-8">{session.user?.name}</span>
+                <span className={`text-black transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} style={{ marginLeft: '-25px', position: 'relative', top: '2px' }}>⌄</span>
               </div>
 
               {showUserMenu && (

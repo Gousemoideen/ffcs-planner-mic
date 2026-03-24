@@ -222,13 +222,19 @@ export default function SavedPage() {
 
     async function handleRename() {
         if (!selectedTT || !renameValue.trim()) return;
-        await axios.patch(`/api/timetables/${selectedTT._id}`, { title: renameValue });
-        setTimetables(prev =>
-            (prev ?? []).map(t => (t._id === selectedTT._id ? { ...t, title: renameValue } : t))
-        );
-        if (selectedTT) setSelectedTT({ ...selectedTT, title: renameValue });
-        setRenameOpen(false);
-        showToast('Timetable renamed');
+        try {
+            await axios.patch(`/api/timetables/${selectedTT._id}`, { title: renameValue });
+            setTimetables(prev =>
+                (prev ?? []).map(t => (t._id === selectedTT._id ? { ...t, title: renameValue } : t))
+            );
+            if (selectedTT) setSelectedTT({ ...selectedTT, title: renameValue });
+            setRenameOpen(false);
+            showToast('Timetable renamed');
+        } catch (error: any) {
+            const detail = error?.response?.data?.detail || error?.response?.data?.error || error?.message || 'Unknown error';
+            console.error('Rename error:', detail, error);
+            showToast(`Failed to rename: ${detail}`);
+        }
     }
 
     async function handleTogglePublic() {

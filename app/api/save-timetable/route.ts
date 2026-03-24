@@ -28,6 +28,12 @@ export async function POST(req: NextRequest) {
 
         await dbConnect();
 
+        // Prevent duplicate timetable names for the same user
+        const existingTimetable = await Timetable.findOne({ owner, title: title.trim() });
+        if (existingTimetable) {
+            return NextResponse.json({ error: 'A timetable with this title already exists' }, { status: 409 });
+        }
+
         let shareId: string;
         let exists = true;
         do {

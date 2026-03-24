@@ -69,6 +69,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        // Prevent duplicate timetable names for the same user upon rename
+        if (body.title !== undefined) {
+             const existingTimetable = await Timetable.findOne({ owner: session.user.email, title: body.title.trim(), _id: { $ne: id } });
+             if (existingTimetable) {
+                  return NextResponse.json({ error: 'A timetable with this title already exists' }, { status: 409 });
+             }
+        }
+
         await Timetable.findByIdAndUpdate(id, update);
 
         return NextResponse.json({ success: true });
