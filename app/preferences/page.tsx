@@ -250,8 +250,8 @@ export default function PreferencesPage() {
     };
 
     const handleAddAnotherProfessor = () => {
-        setCurrentStep(5);
-        setCookie('preferenceStep', '5');
+        setCurrentStep(3);
+        setCookie('preferenceStep', '3');
     };
 
     const handleDepartmentSelect = (dept: string) => {
@@ -585,7 +585,7 @@ export default function PreferencesPage() {
                                             <div className="flex w-full gap-2">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleAddAnotherProfessor(); }}
-                                                    title={'Reset to Step 5 and add another professor'}
+                                                    title={'Reset to Step 3 and add another course/professor'}
                                                     className="flex-1 px-3 py-2 rounded-lg font-bold text-sm bg-[#FFF7ED] text-[#EA580C] hover:bg-[#FFEDD5] hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 border border-[#FDBA74] cursor-pointer"
                                                 >
                                                     + Add another

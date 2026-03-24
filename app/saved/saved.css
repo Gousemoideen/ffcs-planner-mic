@@ -284,18 +284,25 @@
   flex-direction: column;
   gap: 16px;
   align-self: flex-start;
+  position: relative;
 }
 
 .card-icons-top {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 3px;
+  position: absolute;
+  z-index: 1;
+  right: 1vw;
+  top: 1vh;
+   
+
 }
 
 .card-icon-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   background: white;
   display: flex;
   align-items: center;
@@ -319,6 +326,7 @@
   border-radius: 16px;
   padding: 20px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  position: relative;
 }
 
 .mini-grid-rows {
