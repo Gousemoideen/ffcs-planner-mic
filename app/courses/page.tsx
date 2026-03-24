@@ -2,8 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { fullCourseData } from '@/lib/type';
 import { getCourseType } from '@/lib/course_codes_map';
+import { clashMap } from '@/lib/slots';
 
 type FacultyEntry = {
     uid: string;
@@ -25,6 +27,10 @@ const setCookie = (name: string, value: string, days = 30) => {
     const expires = new Date();
     expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
     document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/`;
+};
+
+const deleteCookie = (name: string) => {
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
 };
 
 const getCookie = (name: string): string | null => {
@@ -59,45 +65,87 @@ const createUid = () =>
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const buildPreferenceCoursesFromRows = (rows: FacultyEntry[]): fullCourseData[] => {
-    const groups: CourseGroup[] = [];
+    // 1. Group rows by course code (so a course only exists once)
+    const coursesMap = new Map<string, {
+        courseCode: string;
+        courseName: string;
+        slotsMap: Map<string, Set<string>>; // slotName -> set of faculty names
+    }>();
 
-    rows.forEach((row) => {
-        const existingGroup = groups.find(
-            (group) =>
-                group.courseCode === row.courseCode &&
-                group.courseName === row.courseName &&
-                group.slot === row.slot,
-        );
-
-        if (existingGroup) {
-            existingGroup.faculties.push(row.facultyName);
-            return;
+    rows.forEach(row => {
+        if (!coursesMap.has(row.courseCode)) {
+            coursesMap.set(row.courseCode, {
+                courseCode: row.courseCode,
+                courseName: row.courseName, // typically identical across same course code
+                slotsMap: new Map(),
+            });
         }
 
-        groups.push({
-            courseCode: row.courseCode,
-            courseName: row.courseName,
-            slot: row.slot,
-            faculties: [row.facultyName],
+        const courseGroup = coursesMap.get(row.courseCode)!;
+
+        if (!courseGroup.slotsMap.has(row.slot)) {
+            courseGroup.slotsMap.set(row.slot, new Set());
+        }
+
+        courseGroup.slotsMap.get(row.slot)!.add(row.facultyName);
+    });
+
+    const result: fullCourseData[] = [];
+
+    // 2. Convert to the expected fullCourseData format
+    coursesMap.forEach((course) => {
+        const courseSlots = Array.from(course.slotsMap.entries()).map(([slotName, facultySet]) => ({
+            slotName,
+            slotFaculties: Array.from(facultySet).map(facultyName => ({ facultyName }))
+        }));
+
+        result.push({
+            // Using a simpler ID or one that encompasses all slots securely
+            id: `${course.courseCode}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            courseType: getCourseType(course.courseCode),
+            courseCode: course.courseCode,
+            courseName: course.courseName,
+            courseSlots,
         });
     });
 
-    return groups.map((group) => ({
-        id: `${group.courseCode} - ${group.courseName}_${group.slot}_${group.faculties.join('_')}`,
-        courseType: getCourseType(group.courseCode),
-        courseCode: group.courseCode,
-        courseName: group.courseName,
-        courseSlots: [
-            {
-                slotName: group.slot,
-                slotFaculties: group.faculties.map((facultyName) => ({ facultyName })),
-            },
-        ],
-    }));
+    return result;
+};
+
+// Detect if two slots clash
+const doSlotsClash = (slot1: string, slot2: string): boolean => {
+    const slots1 = slot1.split('+').map(s => s.trim());
+    const slots2 = slot2.split('+').map(s => s.trim());
+
+    for (const s1 of slots1) {
+        for (const s2 of slots2) {
+            if (s1 === s2) return true;
+            if (clashMap[s1]?.includes(s2)) return true;
+            if (clashMap[s2]?.includes(s1)) return true;
+        }
+    }
+    return false;
+};
+
+// Find all clashing faculty UIDs
+const findClashes = (faculties: FacultyEntry[]): Set<string> => {
+    const clashingUids = new Set<string>();
+
+    for (let i = 0; i < faculties.length; i++) {
+        for (let j = i + 1; j < faculties.length; j++) {
+            if (doSlotsClash(faculties[i].slot, faculties[j].slot)) {
+                clashingUids.add(faculties[i].uid);
+                clashingUids.add(faculties[j].uid);
+            }
+        }
+    }
+
+    return clashingUids;
 };
 
 export default function CoursesPage() {
     const router = useRouter();
+    const { data: session } = useSession();
 
     const [allSubjectsMode, setAllSubjectsMode] = useState(false);
     const [faculties, setFaculties] = useState<FacultyEntry[]>([]);
@@ -106,6 +154,9 @@ export default function CoursesPage() {
     const [isVisible, setIsVisible] = useState(false);
     const [rowEffects, setRowEffects] = useState<Record<string, string>>({});
     const [isReordering, setIsReordering] = useState(false);
+    const [clashingUids, setClashingUids] = useState<Set<string>>(new Set());
+
+    const [deletedRow, setDeletedRow] = useState<{ faculty: FacultyEntry; index: number } | null>(null);
 
     useEffect(() => {
         try {
@@ -172,6 +223,9 @@ export default function CoursesPage() {
 
         const updatedCourses = buildPreferenceCoursesFromRows(faculties);
         setCookie('preferenceCourses', JSON.stringify(updatedCourses));
+
+        // Detect clashes
+        setClashingUids(findClashes(faculties));
     }, [faculties, loaded]);
 
     useEffect(() => {
@@ -253,6 +307,8 @@ export default function CoursesPage() {
         const rowToRemove = faculties[index];
         if (!rowToRemove) return;
 
+        // Show inline undo row instead of immediately removing
+        setDeletedRow({ faculty: rowToRemove, index });
         triggerRowEffects({ [rowToRemove.uid]: 'animate-dust-out' }, 820);
 
         window.setTimeout(() => {
@@ -263,11 +319,20 @@ export default function CoursesPage() {
         }, 350);
     };
 
+    const handleUndoSingleDelete = () => {
+        if (!deletedRow) return;
+        setFaculties((previous) => {
+            const next = [...previous];
+            next.splice(deletedRow.index, 0, deletedRow.faculty);
+            return renumber(next);
+        });
+        setDeletedRow(null);
+    };
+
     const handleRemoveAll = () => {
-        if (confirm('Are you sure you want to remove all faculties?')) {
-            setLastRemovedFaculties(faculties);
-            setFaculties([]);
-        }
+        setLastRemovedFaculties(faculties);
+        setFaculties([]);
+        setDeletedRow(null);
     };
 
     const handleUndoRemoveAll = () => {
@@ -286,125 +351,176 @@ export default function CoursesPage() {
 
     return (
         <div className={`min-h-screen bg-[#F5E6D3] font-sans flex flex-col transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
-            <div className="flex-1 p-8">
-                <h1 className="text-4xl font-bold mb-8 text-black animate-lucid-fade-up">Your Faculty Preferences</h1>
+            <div className="flex-1 p-[clamp(16px,2vw,32px)] overflow-auto">
 
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-8 transition-shadow duration-300 hover:shadow-xl animate-lucid-fade-up-delayed">
-                    <div className="bg-green-400 px-8 py-4 rounded-t-2xl">
-                        <h2 className="text-2xl font-bold text-black">Selected Faculties</h2>
-                    </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="bg-gray-100 border-b border-gray-300">
-                                    <th className="px-6 py-4 text-left font-bold text-black w-12">No</th>
-                                    <th className="px-6 py-4 text-left font-bold text-black">Course Code</th>
-                                    <th className="px-6 py-4 text-left font-bold text-black">Course Name</th>
-                                    <th className="px-6 py-4 text-left font-bold text-black">Slot</th>
-                                    <th className="px-6 py-4 text-left font-bold text-black">Faculty Name</th>
-                                    <th className="px-6 py-4 text-center font-bold text-black w-32">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {faculties.length > 0 ? (
-                                    faculties.map((faculty, index) => (
-                                        <tr
-                                            key={faculty.uid}
-                                            className={`border-b border-gray-200 hover:bg-gray-50 transition-colors duration-200 animate-lucid-row ${rowEffects[faculty.uid] || ''} ${rowEffects[faculty.uid] === 'animate-dust-out' ? 'pointer-events-none' : ''}`}
-                                        >
-                                            <td className="px-6 py-4 text-black font-semibold text-center">{faculty.no}</td>
-                                            <td className="px-6 py-4 text-black font-mono font-bold text-sm">{faculty.courseCode}</td>
-                                            <td className="px-6 py-4 text-black">
-                                                <div className="text-sm whitespace-pre-wrap">{faculty.courseName}</div>
-                                            </td>
-                                            <td className="px-6 py-4 text-black">
-                                                <div className="text-sm whitespace-pre-wrap">{faculty.slot}</div>
-                                            </td>
-                                            <td className="px-6 py-4 text-black font-semibold">{faculty.facultyName}</td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <button
-                                                        onClick={() => handleMoveUp(index)}
-                                                        disabled={index === 0 || rowEffects[faculty.uid] === 'animate-dust-out' || isReordering}
-                                                        className={`px-3 py-2 rounded text-lg font-bold transition-all duration-200 ${index === 0 || rowEffects[faculty.uid] === 'animate-dust-out' || isReordering ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-200 hover:-translate-y-0.5'}`}
-                                                        title="Move up"
-                                                    >
-                                                        ↑
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleMoveDown(index)}
-                                                        disabled={index === faculties.length - 1 || rowEffects[faculty.uid] === 'animate-dust-out' || isReordering}
-                                                        className={`px-3 py-2 rounded text-lg font-bold transition-all duration-200 ${index === faculties.length - 1 || rowEffects[faculty.uid] === 'animate-dust-out' || isReordering ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-200 hover:-translate-y-0.5'}`}
-                                                        title="Move down"
-                                                    >
-                                                        ↓
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleRemove(index)}
-                                                        disabled={rowEffects[faculty.uid] === 'animate-dust-out'}
-                                                        className={`px-3 py-2 rounded text-lg font-bold text-red-500 hover:text-red-700 hover:bg-red-50 transition-all duration-200 ${rowEffects[faculty.uid] === 'animate-dust-out' ? 'opacity-40 cursor-not-allowed' : 'hover:-translate-y-0.5'}`}
-                                                        title="Remove"
-                                                    >
-                                                        🗑️
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                                            No faculties selected yet
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div className="bg-gray-50 px-8 py-4 border-t border-gray-200 flex justify-between items-center ">
-                        <div className="flex items-center gap-2 bg-yellow-100 rounded-lg px-4 py-2 hidden">
-                            <span className="text-yellow-600 font-bold text-lg">?</span>
-                            <span className="text-sm text-gray-700 font-medium">All subjects mode</span>
-                            <button
-                                onClick={() => setAllSubjectsMode((prev) => !prev)}
-                                className={`ml-3 w-12 h-6 rounded-full transition-all duration-300 flex items-center px-1 shadow-sm ${allSubjectsMode ? 'bg-blue-500 scale-105 ring-2 ring-blue-200 animate-cartoon-pulse' : 'bg-gray-300'}`}
-                            >
-                                <div className={`w-5 h-5 bg-white rounded-full transition-transform duration-300 shadow-md ${allSubjectsMode ? 'translate-x-6 animate-cartoon-bounce' : 'translate-x-0'}`}></div>
-                            </button>
+                {clashingUids.size > 0 && (
+                    <div className="bg-red-100 border-2 border-red-400 rounded-lg px-6 py-4 mb-6 flex items-center gap-3 animate-lucid-fade-up">
+                        <svg className="w-6 h-6 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div>
+                            <h3 className="text-red-800 font-bold text-lg">Slot Clash Detected!</h3>
+                            <p className="text-red-700 text-sm">Some courses have overlapping time slots. Courses with clashes are highlighted in red.</p>
                         </div>
+                    </div>
+                )}
 
-                        <div className="flex items-center gap-4">
-                            {faculties.length === 0 && lastRemovedFaculties && lastRemovedFaculties.length > 0 && (
-                                <button
-                                    onClick={handleUndoRemoveAll}
-                                    className="text-blue-600 hover:text-blue-800 font-semibold text-sm transition"
-                                >
-                                    Undo remove all
-                                </button>
+                {/* ── Selected Courses Card ── */}
+                <div className="bg-white rounded-2xl shadow-md overflow-hidden mb-4 animate-lucid-fade-up-delayed">
+                    {/* Green header */}
+                    <div className="bg-[#c6f6c6] px-6 py-4">
+                        <h2 className="text-2xl font-bold text-black">Selected Courses</h2>
+                    </div>
+
+                    {/* Table header */}
+                    <div className="grid grid-cols-[40px_minmax(80px,1fr)_minmax(100px,2fr)_minmax(60px,1fr)_minmax(80px,1fr)_minmax(80px,100px)] border-b border-gray-200 bg-white">
+                        <div className="px-4 py-3 text-sm font-bold text-black">No</div>
+                        <div className="px-4 py-3 text-sm font-bold text-black">Course Code</div>
+                        <div className="px-4 py-3 text-sm font-bold text-black">Course Name</div>
+                        <div className="px-4 py-3 text-sm font-bold text-black">Slot</div>
+                        <div className="px-4 py-3 text-sm font-bold text-black">Faculty</div>
+                        <div className="px-4 py-3 text-sm font-bold text-black"></div>
+                    </div>
+
+                    {/* Rows */}
+                    {faculties.length === 0 && !lastRemovedFaculties ? (
+                        <div className="px-6 py-10 text-center text-gray-400 text-sm">No courses selected yet</div>
+                    ) : (
+                        <div>
+                            {faculties.map((faculty, index) => {
+                                const hasClash = clashingUids.has(faculty.uid);
+                                const isDusting = rowEffects[faculty.uid] === 'animate-dust-out';
+                                // Split combined course names and slots (both/lab types use __ separator)
+                                const nameParts = faculty.courseName.split('__');
+                                const slotParts = faculty.slot.split('__');
+                                return (
+                                    <div key={faculty.uid}>
+                                        <div
+                                            className={`grid grid-cols-[40px_minmax(80px,1fr)_minmax(100px,2fr)_minmax(60px,1fr)_minmax(80px,1fr)_minmax(80px,100px)] border-b border-gray-100 items-center transition-colors ${isDusting ? 'pointer-events-none' : ''
+                                                } ${hasClash ? 'bg-red-50' : 'bg-white hover:bg-gray-50'
+                                                } ${rowEffects[faculty.uid] || ''}`}
+                                        >
+                                            <div className={`px-4 py-4 text-sm font-semibold ${hasClash ? 'text-red-600' : 'text-gray-800'}`}>{faculty.no}</div>
+                                            <div className={`px-4 py-4 text-sm font-bold font-mono ${hasClash ? 'text-red-600' : 'text-gray-900'}`}>{faculty.courseCode}</div>
+                                            <div className={`px-4 py-4 text-sm ${hasClash ? 'text-red-600' : 'text-gray-800'}`}>
+                                                {nameParts.map((n, i) => <div key={i}>{n}</div>)}
+                                            </div>
+                                            <div className={`px-4 py-4 text-sm font-semibold ${hasClash ? 'text-red-600' : 'text-gray-800'}`}>
+                                                {slotParts.map((s, i) => <div key={i}>{s}</div>)}
+                                            </div>
+                                            <div className={`px-4 py-4 text-sm ${hasClash ? 'text-red-600' : 'text-gray-600'}`}>{faculty.facultyName}</div>
+                                            <div className="px-4 py-4 flex items-center gap-1">
+                                                {/* Up button */}
+                                                <button
+                                                    onClick={() => handleMoveUp(index)}
+                                                    disabled={index === 0 || isDusting || isReordering}
+                                                    title="Move up"
+                                                    className={`w-8 h-8 flex items-center justify-center rounded border transition-all ${index === 0 || isDusting || isReordering
+                                                        ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                                                        : 'border-gray-300 text-gray-500 hover:bg-gray-100 cursor-pointer'
+                                                        }`}
+                                                >
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 15l-6-6-6 6" /></svg>
+                                                </button>
+                                                {/* Down button */}
+                                                <button
+                                                    onClick={() => handleMoveDown(index)}
+                                                    disabled={index === faculties.length - 1 || isDusting || isReordering}
+                                                    title="Move down"
+                                                    className={`w-8 h-8 flex items-center justify-center rounded border transition-all ${index === faculties.length - 1 || isDusting || isReordering
+                                                        ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                                                        : 'border-gray-300 text-gray-500 hover:bg-gray-100 cursor-pointer'
+                                                        }`}
+                                                >
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
+                                                </button>
+                                                {/* Delete button */}
+                                                <button
+                                                    onClick={() => handleRemove(index)}
+                                                    disabled={isDusting}
+                                                    title="Remove"
+                                                    className={`w-8 h-8 flex items-center justify-center rounded border transition-all ${isDusting
+                                                        ? 'border-red-100 text-red-200 cursor-not-allowed'
+                                                        : 'border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 cursor-pointer'
+                                                        }`}
+                                                >
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {/* Inline undo row shown right after deleted item position */}
+                                        {deletedRow && deletedRow.index === index + 1 && (
+                                            <div className="grid grid-cols-[40px_minmax(80px,1fr)_minmax(100px,2fr)_minmax(60px,1fr)_minmax(80px,1fr)_minmax(80px,100px)] border-b border-gray-100 bg-gray-50 items-center">
+                                                <div />
+                                                <div className="col-span-4 px-4 py-3 text-sm text-gray-500 italic">Subject deleted.</div>
+                                                <div className="px-4 py-3">
+                                                    <button
+                                                        onClick={handleUndoSingleDelete}
+                                                        className="text-sm font-bold text-gray-800 hover:text-black transition cursor-pointer"
+                                                    >Undo</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            {/* Undo row at bottom when deleted row was last */}
+                            {deletedRow && faculties.length === 0 && (
+                                <div className="grid grid-cols-[40px_minmax(80px,1fr)_minmax(100px,2fr)_minmax(60px,1fr)_minmax(80px,1fr)_minmax(80px,100px)] border-b border-gray-100 bg-gray-50 items-center">
+                                    <div />
+                                    <div className="col-span-4 px-4 py-3 text-sm text-gray-500 italic">Subject deleted.</div>
+                                    <div className="px-4 py-3">
+                                        <button
+                                            onClick={handleUndoSingleDelete}
+                                            className="text-sm font-bold text-gray-800 hover:text-black transition cursor-pointer"
+                                        >Undo</button>
+                                    </div>
+                                </div>
                             )}
+                            {/* Remove all undo row */}
+                            {faculties.length === 0 && lastRemovedFaculties && lastRemovedFaculties.length > 0 && (
+                                <div className="grid grid-cols-[40px_minmax(80px,1fr)_minmax(100px,2fr)_minmax(60px,1fr)_minmax(80px,1fr)_minmax(80px,100px)] border-b border-gray-100 bg-gray-50 items-center">
+                                    <div />
+                                    <div className="col-span-4 px-4 py-3 text-sm text-gray-500 italic">All courses deleted.</div>
+                                    <div className="px-4 py-3">
+                                        <button
+                                            onClick={handleUndoRemoveAll}
+                                            className="text-sm font-bold text-gray-800 hover:text-black transition cursor-pointer"
+                                        >Undo</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
+                    {/* Footer: Remove all */}
+                    {faculties.length > 0 && (
+                        <div className="px-6 py-3 border-t border-gray-100">
                             <button
                                 onClick={handleRemoveAll}
-                                disabled={faculties.length === 0}
-                                className={`text-red-500 hover:text-red-700 font-semibold text-sm transition ${faculties.length === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                className="text-sm font-semibold text-red-500 hover:text-red-700 transition cursor-pointer"
                             >
                                 Remove all
                             </button>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
-            <div className="bg-white border-t border-gray-300 py-6 px-8 shadow-lg animate-lucid-fade-up-delayed">
-                <div className="flex items-center justify-between max-w-7xl mx-auto">
+            {/* Bottom nav */}
+            <div className="bg-white border-t border-gray-300 py-4 px-[clamp(16px,2vw,32px)] shadow-lg animate-lucid-fade-up-delayed shrink-0">
+                <div className="flex flex-wrap items-center justify-between max-w-7xl mx-auto gap-3">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
-                        <span className="text-gray-700 text-sm font-semibold">Sravan Kowsik Gonugunte</span>
+                        {session?.user?.image ? (
+                            <img src={session.user.image} alt="User avatar" className="w-10 h-10 rounded-full" referrerPolicy="no-referrer" />
+                        ) : (
+                            <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
+                        )}
+                        <span className="text-gray-700 text-sm font-semibold">{session?.user?.name || 'Guest'}</span>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                         {[1, 2, 3, 4].map((num) => (
                             <button
                                 key={num}
@@ -414,7 +530,8 @@ export default function CoursesPage() {
                                     if (num === 3) router.push('/timetable');
                                     if (num === 4) router.push('/saved');
                                 }}
-                                className={`px-5 py-2 rounded-lg font-semibold text-sm ${num === 2 ? 'bg-[#A0C4FF] text-black' : 'bg-[#A0C4FF]/40 text-gray-700'}`}
+                                className={`px-5 py-2 rounded-lg font-semibold text-sm cursor-pointer ${num === 2 ? 'bg-[#A0C4FF] text-black' : 'bg-[#A0C4FF]/40 text-gray-700'
+                                    }`}
                             >
                                 {num === 2 ? '2. Faculty Preferences' : num}
                             </button>
@@ -423,116 +540,57 @@ export default function CoursesPage() {
 
                     <div className="flex gap-3">
                         <button
-                            onClick={() => router.push('/preferences')}
-                            className="px-8 py-2.5 border-2 border-gray-400 rounded-lg font-semibold text-sm hover:bg-gray-50 text-black transition"
+                            onClick={() => {
+                                deleteCookie('editingTimetableId');
+                                router.back();
+                            }}
+                            className="px-8 py-2.5 border-2 border-gray-400 rounded-lg font-semibold text-sm hover:bg-gray-50 text-black transition cursor-pointer"
                         >
-                            previous
+                            Previous
                         </button>
                         <button
                             onClick={() => router.push('/timetable')}
-                            className="px-10 py-2.5 rounded-lg font-semibold text-sm bg-[#A0C4FF] hover:bg-[#90B4EF] text-black transition"
+                            className="px-10 py-2.5 rounded-lg font-semibold text-sm bg-[#A0C4FF] hover:bg-[#90B4EF] text-black transition cursor-pointer"
                         >
-                            next
+                            Next
                         </button>
                     </div>
                 </div>
             </div>
 
             <style jsx>{`
-                @keyframes cartoonBounce {
-                    0% { transform: translateX(1.5rem) scale(1); }
-                    35% { transform: translateX(1.5rem) scale(1.18); }
-                    60% { transform: translateX(1.5rem) scale(0.92); }
-                    100% { transform: translateX(1.5rem) scale(1); }
-                }
-
-                @keyframes cartoonPulse {
-                    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35); }
-                    70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-                    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-                }
-
-                .animate-cartoon-bounce {
-                    animation: cartoonBounce 350ms ease-out;
-                }
-
-                .animate-cartoon-pulse {
-                    animation: cartoonPulse 1200ms ease-out;
-                }
-
                 @keyframes lucidFadeUp {
                     from { opacity: 0; transform: translateY(10px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
-
                 @keyframes lucidRow {
                     from { opacity: 0; transform: translateX(8px); }
                     to { opacity: 1; transform: translateX(0); }
                 }
-
-                .animate-lucid-fade-up {
-                    animation: lucidFadeUp 420ms ease-out;
-                }
-
-                .animate-lucid-fade-up-delayed {
-                    animation: lucidFadeUp 520ms ease-out;
-                }
-
-                .animate-lucid-row {
-                    animation: lucidRow 260ms ease-out;
-                }
+                .animate-lucid-fade-up { animation: lucidFadeUp 420ms ease-out; }
+                .animate-lucid-fade-up-delayed { animation: lucidFadeUp 520ms ease-out; }
+                .animate-lucid-row { animation: lucidRow 260ms ease-out; }
 
                 @keyframes cartoonMoveUp {
-                    0% { transform: translateY(0) scale(1, 1); }
-                    40% { transform: translateY(-8px) scale(1.02, 0.98); }
-                    70% { transform: translateY(2px) scale(0.995, 1.005); }
-                    100% { transform: translateY(0) scale(1, 1); }
+                    0% { transform: translateY(0) scale(1,1); }
+                    40% { transform: translateY(-8px) scale(1.02,0.98); }
+                    70% { transform: translateY(2px) scale(0.995,1.005); }
+                    100% { transform: translateY(0) scale(1,1); }
                 }
-
                 @keyframes cartoonMoveDown {
-                    0% { transform: translateY(0) scale(1, 1); }
-                    40% { transform: translateY(8px) scale(1.02, 0.98); }
-                    70% { transform: translateY(-2px) scale(0.995, 1.005); }
-                    100% { transform: translateY(0) scale(1, 1); }
+                    0% { transform: translateY(0) scale(1,1); }
+                    40% { transform: translateY(8px) scale(1.02,0.98); }
+                    70% { transform: translateY(-2px) scale(0.995,1.005); }
+                    100% { transform: translateY(0) scale(1,1); }
                 }
-
                 @keyframes dustOut {
-                    0% {
-                        opacity: 1;
-                        transform: translateX(0) scale(1);
-                        filter: blur(0);
-                        background-position: 0 0;
-                    }
-                    55% {
-                        opacity: 0.65;
-                        transform: translateX(10px) scale(0.98);
-                        filter: blur(1px);
-                    }
-                    100% {
-                        opacity: 0;
-                        transform: translateX(28px) scale(0.9);
-                        filter: blur(4px);
-                        background-position: 130% 0;
-                    }
+                    0% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+                    55% { opacity: 0.65; transform: translateX(10px) scale(0.98); filter: blur(1px); }
+                    100% { opacity: 0; transform: translateX(28px) scale(0.9); filter: blur(4px); }
                 }
-
-                .animate-cartoon-move-up {
-                    animation: cartoonMoveUp 620ms cubic-bezier(0.22, 0.7, 0.2, 1);
-                }
-
-                .animate-cartoon-move-down {
-                    animation: cartoonMoveDown 620ms cubic-bezier(0.22, 0.7, 0.2, 1);
-                }
-
-                .animate-dust-out {
-                    background-image: repeating-linear-gradient(
-                        90deg,
-                        rgba(255, 255, 255, 0) 0 6px,
-                        rgba(255, 255, 255, 0.45) 6px 8px
-                    );
-                    background-size: 200% 100%;
-                    animation: dustOut 420ms steps(6, end) forwards;
-                }
+                .animate-cartoon-move-up { animation: cartoonMoveUp 620ms cubic-bezier(0.22,0.7,0.2,1); }
+                .animate-cartoon-move-down { animation: cartoonMoveDown 620ms cubic-bezier(0.22,0.7,0.2,1); }
+                .animate-dust-out { animation: dustOut 420ms steps(6,end) forwards; }
             `}</style>
         </div>
     );

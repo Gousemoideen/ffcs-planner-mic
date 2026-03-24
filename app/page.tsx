@@ -2,11 +2,54 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import "./landing.css"; // Ensure standard normal CSS is imported
+import LoginModal from "../components/loginPopup"
+import { useRouter } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
+import { clearPlannerClientCache } from "@/lib/clientCache";
 
 export default function LandingPage() {
   const [open, setOpen] = useState(false);
   const [isCalendarAnimating, setIsCalendarAnimating] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const router = useRouter();
+  const { data: session } = useSession();
+
+  const handleLogout = React.useCallback(() => {
+    clearPlannerClientCache({ includeEditingState: true });
+    signOut({ callbackUrl: "/" });
+  }, []);
+
+  // Inactivity Logout Logic (e.g., 30 minutes of inactivity)
+  React.useEffect(() => {
+    if (!session) return;
+
+    let inactivityTimer: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        handleLogout();
+      }, 30 * 60 * 1000); // 30 minutes
+    };
+
+    // Track user activity
+    window.addEventListener("mousemove", resetTimer);
+    window.addEventListener("keydown", resetTimer);
+    window.addEventListener("click", resetTimer);
+    window.addEventListener("scroll", resetTimer);
+
+    resetTimer(); // Initialize timer
+
+    return () => {
+      window.removeEventListener("mousemove", resetTimer);
+      window.removeEventListener("keydown", resetTimer);
+      window.removeEventListener("click", resetTimer);
+      window.removeEventListener("scroll", resetTimer);
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+    };
+  }, [session, handleLogout]);
 
   const handleCalendarClick = () => {
     setIsCalendarAnimating(true);
@@ -21,19 +64,89 @@ export default function LandingPage() {
       <div className="white-container">
         <nav className="navbar">
           <div className="logo">FFCS</div>
-          <button className="login-btn">Login</button>
+          {session ? (
+            <div className="relative">
+              <div
+                className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+              >
+                {session.user?.image && (
+                  <img src={session.user.image} alt="avatar" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+                )}
+                <span className="font-semibold text-black pr-8">{session.user?.name}</span>
+                <span className={`text-black transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} style={{ marginLeft: '-25px', position: 'relative', top: '2px' }}>⌄</span>
+              </div>
+
+              {showUserMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)}></div>
+                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-2 animate-lucid-fade-up">
+                    <button
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 font-bold hover:bg-red-50 transition-colors flex items-center gap-2 cursor-pointer"
+                      onClick={handleLogout}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+                      Log out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <button className="login-btn" onClick={() => setShowLogin(true)}>Login</button>
+          )}
         </nav>
+        {showLogin && (
+          <LoginModal onClose={() => setShowLogin(false)} />
+        )}
 
         <section className="hero-section">
           <div className="hero-text">
             <h1>Build Your<br />Timetable</h1>
             <p>
-              Lorem Ipsum Dolor Sit Amet, Consectetur<br />
-              Adipiscing Elit, Sed Do Eiusmod Tempor
+              Plan your perfect timetable with our intuitive<br />
+              course selection and slot management tools
             </p>
             <div className="hero-buttons">
               <button className="btn-primary" onClick={() => setOpen(true)}>Get Started</button>
-              <button className="btn-secondary">Slot View</button>
+              {open && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+                  <div className="flex items-center justify-center w-full max-w-[949px] bg-[#FFFCEE] rounded-[20px] shadow-xl p-6 mx-4 relative">
+                    <div className="relative bg-[#FAFAFA] w-full flex flex-col items-center rounded-[20px] p-8 shadow-[4px_4px_4px_rgba(191,191,191,0.25)]">
+                      <button onClick={() => setOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-black text-[28px] z-10">✕</button>
+                      <h2 className="text-[clamp(22px,3vw,32px)] font-semibold text-center mb-2 mt-2">
+                        Welcome {session?.user?.name ? `back, ${session.user.name}` : "to FFCS"}!
+                      </h2>
+                      <div className="w-full max-w-[700px] h-[1px] bg-gray-300 mb-4"></div>
+                      <p className="text-center text-[clamp(16px,2vw,20px)] mb-8">Choose what you&apos;d like to do next</p>
+                      <div className="flex flex-wrap gap-8 justify-center mb-4">
+                        <button className="flex flex-col items-center justify-center bg-[#E9F3E8] border-[5px] border-[#D4F4E6] rounded-[16px] p-6 w-[280px] max-w-full h-[200px] shadow hover:bg-green-200 transition text-black" onClick={() => { clearPlannerClientCache({ includeEditingState: true }); setOpen(false); router.push('/preferences'); }}>
+                          <Image src="/create_new.png" alt="create" width={167} height={101} />
+                          <p className="font-medium text-center">Create a new one</p>
+                        </button>
+                        <button
+                          className="flex flex-col items-center justify-center bg-[#E9D5FF] border-[#F2D8FE] border-[5px] rounded-[16px] p-6 w-[280px] max-w-full h-[200px] shadow hover:bg-purple-300 transition text-black"
+                          onClick={() => {
+                            if (!session) {
+                              setOpen(false);
+                              setShowLogin(true);
+                            } else {
+                              setOpen(false);
+                              router.push("/saved");
+                            }
+                          }}
+                        >
+                          <Image src="/savedTimetable.png" alt="saved" width={167} height={101} unoptimized />
+                          <p className="mt-4 font-medium text-center">
+                            {session ? "View saved timetables" : "Log in to view saved timetables"}
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <button className="btn-secondary" onClick={() => router.push('/slots')}>Slot View</button>
             </div>
           </div>
           <div className="hero-graphic">
@@ -97,19 +210,19 @@ export default function LandingPage() {
             <div className="step-item">
               <div className="step-number">1</div>
               <p className="step-text">
-                Lorem ipsum dolor sit amet consectetur. Porttitor eu cursus arcu viverra eros at a sed dignissim. Nibh amet at nibh pulvinar accumsan at quisque orci.
+                Select your courses and preferences. Choose from available courses based on your specialization and academic requirements.
               </p>
             </div>
             <div className="step-item">
               <div className="step-number">2</div>
               <p className="step-text">
-                Lorem ipsum dolor sit amet consectetur. Porttitor eu cursus arcu viverra eros at a sed dignissim. Nibh amet at nibh pulvinar accumsan at quisque orci.
+                View available time slots for each course and build your timetable without conflicts. Our tool helps you avoid scheduling overlaps.
               </p>
             </div>
             <div className="step-item">
               <div className="step-number">3</div>
               <p className="step-text">
-                Lorem ipsum dolor sit amet consectetur. Porttitor eu cursus arcu viverra eros at a sed dignissim. Nibh amet at nibh pulvinar accumsan at quisque orci.
+                Save your timetable and share it with classmates. Export your final schedule for reference during FFCS registration.
               </p>
             </div>
           </div>
@@ -122,7 +235,7 @@ export default function LandingPage() {
             {[
               {
                 q: "Why to use this site?",
-                a: "Lorem ipsum dolor sit amet consectetur. Sed vitae proin enim amet consequat sit. Lorem convallis imperdiet at quis feugiat est dignissim in mi. A odio purus feugiat volutpat tellus felis amet vulputate urna."
+                a: "Our FFCS planner helps you make informed decisions before registering for courses. Plan ahead, avoid schedule conflicts, and save time during the actual FFCS registration process. It's designed specifically for VIT's course system."
               },
               {
                 q: "Will it help me in my\nFFCS",
@@ -130,11 +243,11 @@ export default function LandingPage() {
               },
               {
                 q: "Do I need to be a VIT student to use\nthis site?",
-                a: "This tool is specifically designed for the FFCS system at VIT. However, anyone can try it out!"
+                a: "This tool is specifically designed for the FFCS system at VIT Chennai. However, anyone can try it out!"
               },
               {
-                q: "Lorem ipsum dolor sit amet\nconsectetur.",
-                a: "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam."
+                q: "Can I change my timetable\nafter saving?",
+                a: "Yes, you can edit your saved timetables anytime. Make adjustments to your course selections and slot preferences before the FFCS registration deadline."
               }
             ].map((faq, index) => (
               <div
@@ -183,20 +296,29 @@ export default function LandingPage() {
             <div className="f-block f-about">
               <h3>FFCS</h3>
               <p>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Etiam eu turpis molestie, dictum est a, mattis tellus. Sed dignissim, metus nec fringilla accumsan, risus sem sollicitudin lacus, ut interdum tellus elit sed risus.
+                The Flexible Fast Customized Schedule (FFCS) planning tool helps VIT Chennai students organize their course selections before registration. Create multiple timetables, compare schedules, and prepare for seamless FFCS registration with our intelligent course and slot management system.
               </p>
             </div>
 
             <div className="f-block f-buttons">
-              <button className="f-btn f-btn-gen">
+              <button className="f-btn f-btn-gen" onClick={() => router.push('/preferences')}>
                 <Image src="/calendar_icon2.png" alt="calendar" width={32} height={32} />
                 <span>Generate<br />timetable</span>
               </button>
-              <button className="f-btn f-btn-saved">
+              <button
+                className="f-btn f-btn-saved"
+                onClick={() => {
+                  if (!session) {
+                    setShowLogin(true);
+                  } else {
+                    router.push('/saved');
+                  }
+                }}
+              >
                 <Image src="/Clock.png" alt="clock" width={32} height={32} />
                 <span>View saved<br />timetables</span>
               </button>
-              <button className="f-btn f-btn-slots">
+              <button className="f-btn f-btn-slots" onClick={() => router.push('/slots')}>
                 <Image src="/slot_icon.png" alt="slot" width={32} height={32} />
                 <span>View slots</span>
               </button>

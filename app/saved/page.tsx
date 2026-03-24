@@ -1,9 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import Image from 'next/image';
+import { getCourseType } from '@/lib/course_codes_map';
+import { fullCourseData } from '@/lib/type';
+import { useTimetable } from '@/lib/TimeTableContext';
+import { exportToPDF } from '@/lib/exportToPDF';
+import './saved.css';
+
 
 /* ── Slot → timetable grid mapping ── */
 const THEORY_SLOTS: Record<string, [number, number]> = {};
@@ -28,6 +35,7 @@ theoryLabels.forEach((row, r) => row.forEach((s, c) => { if (s) THEORY_SLOTS[s] 
 labLabels.forEach((row, r) => row.forEach((s, c) => { if (s) LAB_SLOTS[s] = [r, c]; }));
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const THEORY_TIMES = [
     '8:00-8:50', '8:55-9:45', '9:50-10:40', '10:45-11:35', '11:40-12:30',
     '12:30-1:20', '2:00-2:50', '2:55-3:45', '3:50-4:40', '4:45-5:35',
@@ -35,8 +43,8 @@ const THEORY_TIMES = [
 ];
 
 const SLOT_COLORS = [
-    '#A0C4FF', '#CAFFD0', '#E9D5FF', '#FEF08A', '#FFD6E0',
-    '#BDD7FF', '#B8F0E0', '#FFDAB9', '#C4B5FD', '#A7F3D0',
+    '#93C5FD', '#86EFAC', '#C4B5FD', '#FDE68A', '#FCA5A5',
+    '#7DD3FC', '#6EE7B7', '#FCD34D', '#DDD6FE', '#99F6E4',
 ];
 
 function getSlotColor(code: string, allCodes: string[]): string {
@@ -65,14 +73,71 @@ async function fetchTimetablesByOwner(owner: string) {
     return res.data;
 }
 
+/* ── Cookie Helpers ── */
+const setCookie = (name: string, value: string, days = 30) => {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/`;
+};
+
+const deleteCookie = (name: string) => {
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+};
+
+/* ── Convert Timetable to Course Preferences ── */
+function convertTimetableToCoursePreferences(tt: TimetableEntry): fullCourseData[] {
+    // Group slots by courseCode, courseName
+    const courseMap = new Map<string, {
+        courseCode: string;
+        courseName: string;
+        slots: Map<string, string[]>; // slotName -> facultyNames[]
+    }>();
+
+    tt.slots.forEach(entry => {
+        const key = `${entry.courseCode}|||${entry.courseName}`;
+        if (!courseMap.has(key)) {
+            courseMap.set(key, {
+                courseCode: entry.courseCode,
+                courseName: entry.courseName,
+                slots: new Map(),
+            });
+        }
+        const course = courseMap.get(key)!;
+
+        if (!course.slots.has(entry.slot)) {
+            course.slots.set(entry.slot, []);
+        }
+        course.slots.get(entry.slot)!.push(entry.facultyName);
+    });
+
+    // Convert to fullCourseData[]
+    const result: fullCourseData[] = [];
+    courseMap.forEach(course => {
+        const courseSlots = Array.from(course.slots.entries()).map(([slotName, faculties]) => ({
+            slotName,
+            slotFaculties: faculties.map(facultyName => ({ facultyName })),
+        }));
+
+        result.push({
+            id: `${course.courseCode} - ${course.courseName}_${Array.from(course.slots.keys()).join('_')}`,
+            courseType: getCourseType(course.courseCode),
+            courseCode: course.courseCode,
+            courseName: course.courseName,
+            courseSlots,
+        });
+    });
+
+    return result;
+}
+
 /* ── Main Page ── */
 export default function SavedPage() {
     const router = useRouter();
     const { data: session, status } = useSession();
     const userEmail = session?.user?.email;
+    const { setTimetableData } = useTimetable();
 
-    const [timetables, setTimetables] = useState<TimetableEntry[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [timetables, setTimetables] = useState<TimetableEntry[] | null>(null);
     const [selectedTT, setSelectedTT] = useState<TimetableEntry | null>(null);
     const [viewMode, setViewMode] = useState<'list' | 'view'>('list');
 
@@ -81,6 +146,17 @@ export default function SavedPage() {
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [renameValue, setRenameValue] = useState('');
     const [toast, setToast] = useState('');
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Unique value per mount — ensures the fetch effect re-runs every time
+    // this component mounts, even if userEmail/status haven't changed
+    const [mountId] = useState(() => Date.now());
+
+    // Derived loading: true while session is loading OR while auth is ready but fetch hasn't returned yet
+    const loading = status === 'loading' || (status === 'authenticated' && timetables === null);
+
+    function scrollLeft() { scrollRef.current?.scrollBy({ left: -380, behavior: 'smooth' }); }
+    function scrollRight() { scrollRef.current?.scrollBy({ left: 380, behavior: 'smooth' }); }
 
     useEffect(() => {
         if (status === 'unauthenticated') {
@@ -88,14 +164,16 @@ export default function SavedPage() {
         }
     }, [status, router]);
 
+    // Fetch timetables — runs on every mount (mountId is unique per mount)
+    // and whenever userEmail or auth status becomes available
     useEffect(() => {
-        if (!userEmail) return;
-        setLoading(true);
+        if (status !== 'authenticated' || !userEmail) return;
+        let cancelled = false;
         fetchTimetablesByOwner(userEmail)
-            .then(setTimetables)
-            .catch(() => setTimetables([]))
-            .finally(() => setLoading(false));
-    }, [userEmail]);
+            .then(data => { if (!cancelled) setTimetables(data); })
+            .catch(() => { if (!cancelled) setTimetables([]); });
+        return () => { cancelled = true; };
+    }, [userEmail, status, mountId]);
 
     const showToast = useCallback((msg: string) => {
         setToast(msg);
@@ -103,25 +181,60 @@ export default function SavedPage() {
     }, []);
 
     /* ── Handlers ── */
+    function handleEdit(tt: TimetableEntry) {
+        if (tt._id.startsWith('mock')) return;
+
+        // Clear timetable context for fresh generation
+        setTimetableData(null);
+
+        // Convert timetable to course preferences format
+        const coursePreferences = convertTimetableToCoursePreferences(tt);
+
+        // Save to cookie
+        setCookie('preferenceCourses', JSON.stringify(coursePreferences));
+
+        // Store the timetable ID being edited
+        setCookie('editingTimetableId', tt._id);
+
+        // Navigate to courses page
+        router.push('/courses');
+    }
+
     async function handleDelete() {
         if (!selectedTT) return;
-        await axios.delete(`/api/timetables/${selectedTT._id}`);
-        setTimetables(prev => prev.filter(t => t._id !== selectedTT._id));
-        setDeleteOpen(false);
-        setSelectedTT(null);
-        setViewMode('list');
-        showToast('Timetable deleted successfully');
+        if (selectedTT._id.startsWith('mock')) {
+            setDeleteOpen(false);
+            showToast('Save a real timetable first — these are just preview cards.');
+            return;
+        }
+        try {
+            await axios.delete(`/api/timetables/${selectedTT._id}`);
+            setTimetables(prev => (prev ?? []).filter(t => t._id !== selectedTT._id));
+            setDeleteOpen(false);
+            setSelectedTT(null);
+            setViewMode('list');
+            showToast('Timetable deleted successfully');
+        } catch {
+            setDeleteOpen(false);
+            showToast('Failed to delete timetable. Please try again.');
+        }
     }
 
     async function handleRename() {
         if (!selectedTT || !renameValue.trim()) return;
-        await axios.patch(`/api/timetables/${selectedTT._id}`, { title: renameValue });
-        setTimetables(prev =>
-            prev.map(t => (t._id === selectedTT._id ? { ...t, title: renameValue } : t))
-        );
-        if (selectedTT) setSelectedTT({ ...selectedTT, title: renameValue });
-        setRenameOpen(false);
-        showToast('Timetable renamed');
+        try {
+            await axios.patch(`/api/timetables/${selectedTT._id}`, { title: renameValue });
+            setTimetables(prev =>
+                (prev ?? []).map(t => (t._id === selectedTT._id ? { ...t, title: renameValue } : t))
+            );
+            if (selectedTT) setSelectedTT({ ...selectedTT, title: renameValue });
+            setRenameOpen(false);
+            showToast('Timetable renamed');
+        } catch (error: any) {
+            const detail = error?.response?.data?.detail || error?.response?.data?.error || error?.message || 'Unknown error';
+            console.error('Rename error:', detail, error);
+            showToast(`Failed to rename: ${detail}`);
+        }
     }
 
     async function handleTogglePublic() {
@@ -129,121 +242,165 @@ export default function SavedPage() {
         const newState = !selectedTT.isPublic;
         await axios.patch(`/api/timetables/${selectedTT._id}`, { isPublic: newState });
         setTimetables(prev =>
-            prev.map(t => (t._id === selectedTT._id ? { ...t, isPublic: newState } : t))
+            (prev ?? []).map(t => (t._id === selectedTT._id ? { ...t, isPublic: newState } : t))
         );
         setSelectedTT({ ...selectedTT, isPublic: newState });
         showToast(newState ? 'Timetable is now public' : 'Timetable is now private');
     }
 
+    async function copyToClipboard(text: string): Promise<boolean> {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch {
+                // Fall through to fallback
+            }
+        }
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            return ok;
+        } catch {
+            return false;
+        }
+    }
+
     async function handleCopyLink() {
         if (!selectedTT) return;
-        if (!selectedTT.isPublic) {
-            await axios.patch(`/api/timetables/${selectedTT._id}`, { isPublic: true });
-            setSelectedTT({ ...selectedTT, isPublic: true });
-            setTimetables(prev =>
-                prev.map(t => (t._id === selectedTT._id ? { ...t, isPublic: true } : t))
-            );
+        try {
+            const { data } = await axios.get(`/api/timetables/${selectedTT._id}`);
+            const url = `${window.location.origin}/share/${data.shareId}`;
+            const copied = await copyToClipboard(url);
+            if (copied) {
+                showToast('Share link copied to clipboard!');
+            } else {
+                window.prompt('Copy this share link:', url);
+            }
+        } catch {
+            showToast('Failed to copy share link. Please try again.');
         }
-        const { data } = await axios.get(`/api/timetables/${selectedTT._id}`);
-        const url = `${window.location.origin}/share/${data.shareId}`;
-        await navigator.clipboard.writeText(url);
-        showToast('Share link copied to clipboard!');
     }
 
-    if (status === 'loading') {
-        return (
-            <div className="min-h-screen bg-cream flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-blue-primary border-t-transparent rounded-full animate-spin" />
-                    <p className="text-[15px] font-medium text-gray-500">Loading...</p>
-                </div>
-            </div>
-        );
-    }
+    const displayTimetables = timetables ?? [];
 
     return (
-        <div className="min-h-screen bg-cream font-sans flex flex-col items-center pb-8 overflow-x-hidden">
+        <div className="saved-page">
             {/* Toast */}
             {toast && (
-                <div className="fixed top-6 right-6 z-[100] bg-[#1a1a2e] text-white px-6 py-3 rounded-2xl shadow-2xl text-[14px] font-medium animate-[slideIn_0.3s_ease] flex items-center gap-2">
+                <div className="toast">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A7F3D0" strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>
                     {toast}
                 </div>
             )}
 
             {viewMode === 'list' ? (
-                /* ── LIST VIEW ── */
-                <div className="w-[92%] max-w-[1200px] mt-[40px]">
-                    {/* Header */}
-                    <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.03)] px-12 py-10 mb-8">
-                        <div className="flex items-center justify-between mb-2">
-                            <button
-                                onClick={() => router.push('/')}
-                                className="flex items-center gap-2 text-[14px] font-semibold text-gray-500 hover:text-black transition-colors cursor-pointer bg-transparent border-none"
-                            >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-                                Back
-                            </button>
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#A0C4FF] to-[#CDB4DB] flex items-center justify-center text-white font-bold text-[14px]">
-                                    {session?.user?.name?.[0] || '?'}
+                <>
+                    {/* Main content */}
+                    <div className="main-content">
+                        <h1 className="page-title" style={{ marginBottom: '1rem', marginLeft: '2rem' }}>View Your Saved Timetable</h1>
+
+                        <div className="cards-outer">
+                            {loading ? (
+                                <div className="spinner-center">
+                                    <div className="spinner spinner-md" />
                                 </div>
-                                <span className="text-[13px] font-medium text-gray-600 hidden sm:block">{session?.user?.email}</span>
-                            </div>
+                            ) : displayTimetables.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-icon">📅</div>
+                                    <h2 className="empty-title">No saved timetables yet</h2>
+                                    <p className="empty-desc">Go through the steps to build and save your first timetable.</p>
+                                    <button onClick={() => router.push('/preferences')} className="empty-btn">
+                                        Create a Timetable
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="cards-scroller-wrapper">
+                                    {/* White background wrapping cards + arrows */}
+                                    <div className="white-cards-outer">
+                                        <div ref={scrollRef} className="white-cards-box">
+                                            {displayTimetables.map((tt, i) => (
+                                                <TimetableCard
+                                                    key={tt._id}
+                                                    tt={tt}
+                                                    index={i}
+                                                    allTimetables={displayTimetables}
+                                                    onView={() => {
+                                                        setSelectedTT(tt);
+                                                        setViewMode('view');
+                                                    }}
+                                                    onEdit={() => handleEdit(tt)}
+                                                    onRename={() => {
+                                                        setSelectedTT(tt);
+                                                        setRenameValue(tt.title);
+                                                        setRenameOpen(true);
+                                                    }}
+                                                    onDelete={() => {
+                                                        setSelectedTT(tt);
+                                                        setDeleteOpen(true);
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+
+                                        {/* Scroll arrows inside white background */}
+                                        <div className="arrows-row">
+                                            <button onClick={scrollLeft} className="arrow-btn">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E40AF" strokeWidth="2.5"><path d="M15 18l-6-6 6-6" /></svg>
+                                            </button>
+                                            <button onClick={scrollRight} className="arrow-btn">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E40AF" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <h1 className="text-[42px] font-black text-black tracking-tight leading-tight">
-                            Saved Timetables
-                        </h1>
-                        <p className="text-[15px] text-gray-500 font-medium mt-1">
-                            {timetables.length} timetable{timetables.length !== 1 ? 's' : ''} saved
-                        </p>
                     </div>
 
-                    {/* Timetable Cards */}
-                    {loading ? (
-                        <div className="flex items-center justify-center py-24">
-                            <div className="w-10 h-10 border-4 border-blue-primary border-t-transparent rounded-full animate-spin" />
+                    {/* Bottom nav bar */}
+                    <div className="bottom-nav">
+                        <div className="user-section">
+                            <div className="avatar">
+                                {session?.user?.image
+                                    ? <Image src={session.user.image} alt="avatar" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} unoptimized referrerPolicy="no-referrer" />
+                                    : (session?.user?.name?.[0] || '?')}
+                            </div>
+                            <span className="user-name">{session?.user?.name || 'Guest'}</span>
                         </div>
-                    ) : timetables.length === 0 ? (
-                        <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.03)] px-12 py-20 text-center">
-                            <div className="text-[48px] mb-4">📋</div>
-                            <h2 className="text-[22px] font-bold text-black mb-2">No timetables yet</h2>
-                            <p className="text-[15px] text-gray-500 mb-8">Create and save timetables to see them here.</p>
-                            <button
-                                onClick={() => router.push('/')}
-                                className="rounded-[10px] px-8 py-3 text-[14px] font-bold text-black border-[1.5px] border-[#A0C4FF] bg-[#A0C4FF] hover:bg-[#8ab2f2] transition-colors shadow-sm cursor-pointer"
-                            >
-                                Go to Planner
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {timetables.map((tt, i) => (
-                                <TimetableCard
-                                    key={tt._id}
-                                    tt={tt}
-                                    index={i}
-                                    allTimetables={timetables}
-                                    onView={() => {
-                                        setSelectedTT(tt);
-                                        setViewMode('view');
+
+                        <div className="step-pills">
+                            {[1, 2, 3, 4].map(n => (
+                                <button
+                                    key={n}
+                                    onClick={() => {
+                                        if (n === 1) router.push('/preferences');
+                                        if (n === 2) router.push('/courses');
+                                        if (n === 3) router.push('/timetable');
+                                        if (n === 4) router.push('/saved');
                                     }}
-                                    onRename={() => {
-                                        setSelectedTT(tt);
-                                        setRenameValue(tt.title);
-                                        setRenameOpen(true);
-                                    }}
-                                    onDelete={() => {
-                                        setSelectedTT(tt);
-                                        setDeleteOpen(true);
-                                    }}
-                                />
+                                    className={n === 4 ? 'step-pill-saved' : 'step-pill'}
+                                >
+                                    {n === 4 ? '4. Saved' : n}
+                                </button>
                             ))}
                         </div>
-                    )}
-                </div>
+
+                        <div className="nav-btns">
+                            <button onClick={() => router.back()} className="btn-prev">Previous</button>
+                            <button disabled className="btn-next" style={{ opacity: 0.4, cursor: 'not-allowed' }}>Next</button>
+                        </div>
+                    </div>
+                </>
             ) : selectedTT ? (
-                /* ── DETAIL VIEW ── */
                 <TimetableDetailView
                     tt={selectedTT}
                     onBack={() => { setViewMode('list'); setSelectedTT(null); }}
@@ -251,51 +408,54 @@ export default function SavedPage() {
                     onDelete={() => setDeleteOpen(true)}
                     onCopyLink={handleCopyLink}
                     onTogglePublic={handleTogglePublic}
+                    session={session}
+                    router={router}
+                    showToast={showToast}
                 />
             ) : null}
 
-            {/* ── Rename Modal ── */}
+            {/* Rename Modal */}
             {renameOpen && (
-                <Modal onClose={() => setRenameOpen(false)}>
-                    <div className="text-center">
-                        <div className="w-14 h-14 rounded-2xl bg-[#E9D5FF] flex items-center justify-center mx-auto mb-4">
+                <div className="modal-backdrop" onClick={() => setRenameOpen(false)}>
+                    <div className="modal-box" onClick={e => e.stopPropagation()}>
+                        <div className="modal-icon modal-icon-purple">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                         </div>
-                        <h3 className="text-[20px] font-bold text-black mb-1">Rename Timetable</h3>
-                        <p className="text-[14px] text-gray-500 mb-6">Enter a new name for your timetable</p>
+                        <h3 className="modal-title">Rename Timetable</h3>
+                        <p className="modal-desc">Enter a new name for your timetable</p>
                         <input
                             type="text"
                             value={renameValue}
                             onChange={e => setRenameValue(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border-[1.5px] border-gray-200 text-[15px] font-medium outline-none focus:border-[#7C3AED] transition-colors mb-6"
+                            className="modal-input"
                             placeholder="Timetable name"
                             autoFocus
                             onKeyDown={e => e.key === 'Enter' && handleRename()}
                         />
-                        <div className="flex gap-3">
-                            <button onClick={() => setRenameOpen(false)} className="flex-1 py-3 rounded-xl border-[1.5px] border-gray-200 text-[14px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer bg-white">Cancel</button>
-                            <button onClick={handleRename} className="flex-1 py-3 rounded-xl bg-[#7C3AED] text-white text-[14px] font-semibold hover:bg-[#6D28D9] transition-colors cursor-pointer border-none">Save</button>
+                        <div className="modal-btns">
+                            <button onClick={() => setRenameOpen(false)} className="modal-btn-cancel">Cancel</button>
+                            <button onClick={handleRename} className="modal-btn-confirm modal-btn-purple">Save</button>
                         </div>
                     </div>
-                </Modal>
+                </div>
             )}
 
-            {/* ── Delete Modal ── */}
+            {/* Delete Modal */}
             {deleteOpen && (
-                <Modal onClose={() => setDeleteOpen(false)}>
-                    <div className="text-center">
-                        <div className="w-14 h-14 rounded-2xl bg-[#FFE4E6] flex items-center justify-center mx-auto mb-4">
+                <div className="modal-backdrop" onClick={() => setDeleteOpen(false)}>
+                    <div className="modal-box" onClick={e => e.stopPropagation()}>
+                        <div className="modal-icon modal-icon-red">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E11D48" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                         </div>
-                        <h3 className="text-[20px] font-bold text-black mb-1">Delete Timetable</h3>
-                        <p className="text-[14px] text-gray-500 mb-2">Are you sure you want to delete</p>
-                        <p className="text-[15px] font-bold text-black mb-6">&quot;{selectedTT?.title}&quot;?</p>
-                        <div className="flex gap-3">
-                            <button onClick={() => setDeleteOpen(false)} className="flex-1 py-3 rounded-xl border-[1.5px] border-gray-200 text-[14px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer bg-white">Cancel</button>
-                            <button onClick={handleDelete} className="flex-1 py-3 rounded-xl bg-[#E11D48] text-white text-[14px] font-semibold hover:bg-[#BE123C] transition-colors cursor-pointer border-none">Delete</button>
+                        <h3 className="modal-title">Delete Timetable</h3>
+                        <p className="modal-desc">Are you sure you want to delete</p>
+                        <p className="modal-desc-bold">&quot;{selectedTT?.title}&quot;?</p>
+                        <div className="modal-btns">
+                            <button onClick={() => setDeleteOpen(false)} className="modal-btn-cancel">Cancel</button>
+                            <button onClick={handleDelete} className="modal-btn-confirm modal-btn-red">Delete</button>
                         </div>
                     </div>
-                </Modal>
+                </div>
             )}
         </div>
     );
@@ -306,6 +466,7 @@ function TimetableCard({
     tt,
     index,
     onView,
+    onEdit,
     onRename,
     onDelete,
 }: {
@@ -313,93 +474,79 @@ function TimetableCard({
     index: number;
     allTimetables: TimetableEntry[];
     onView: () => void;
+    onEdit: () => void;
     onRename: () => void;
     onDelete: () => void;
 }) {
-    const pastelBgs = ['#EEF2FF', '#F0FDF4', '#FFF7ED', '#FDF2F8', '#ECFEFF', '#FEF9C3'];
-    const pastelAccents = ['#A0C4FF', '#A7F3D0', '#FDBA74', '#F9A8D4', '#67E8F9', '#FDE047'];
+    const pastelBgs = ['#FFF3C4', '#D9F5E4', '#EBD9FA', '#FFD9E8', '#D9EEF5', '#F5E8D9'];
     const bgColor = pastelBgs[index % pastelBgs.length];
-    const accentColor = pastelAccents[index % pastelAccents.length];
 
-    const createdDate = tt.createdAt
-        ? new Date(tt.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-        : '';
+    let dateLabel = '';
+    if (tt.createdAt) {
+        const d = new Date(tt.createdAt);
+        const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+        const day = d.getDate();
+        const month = d.toLocaleString('en-US', { month: 'long' });
+        dateLabel = `${time} - ${day} ${month}`;
+    }
 
-    // mini preview grid
     const allCodes = tt.slots.map(s => s.courseCode);
-    const grid: (string | null)[][] = Array.from({ length: 5 }, () => Array(13).fill(null));
+    const theoryGrid: (string | null)[][] = Array.from({ length: 5 }, () => Array(13).fill(null));
+    const labGrid: (string | null)[][] = Array.from({ length: 5 }, () => Array(13).fill(null));
     tt.slots.forEach(s => {
-        const parts = s.slot.split('+');
-        parts.forEach(p => {
-            const pos = THEORY_SLOTS[p] || LAB_SLOTS[p];
-            if (pos) grid[pos[0]][pos[1]] = s.courseCode;
+        s.slot.split('+').forEach(p => {
+            if (THEORY_SLOTS[p]) { const [r, c] = THEORY_SLOTS[p]; theoryGrid[r][c] = s.courseCode; }
+            if (LAB_SLOTS[p]) { const [r, c] = LAB_SLOTS[p]; labGrid[r][c] = s.courseCode; }
         });
     });
+    const gridRows: (string | null)[][] = [];
+    for (let d = 0; d < 5; d++) { gridRows.push(theoryGrid[d]); gridRows.push(labGrid[d]); }
 
     return (
-        <div
-            className="bg-white rounded-[24px] shadow-[0_4px_20px_rgba(0,0,0,0.04)] overflow-hidden hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-300 group cursor-pointer border border-gray-50"
-            onClick={onView}
-        >
-            {/* Mini Timetable Preview */}
-            <div className="p-4 pb-2" style={{ backgroundColor: bgColor }}>
-                <div className="rounded-[14px] bg-white/70 backdrop-blur-sm p-3 border border-white/50">
-                    <div className="grid grid-cols-13 gap-[2px]">
-                        {grid.flat().map((cell, i) => (
-                            <div
-                                key={i}
-                                className="h-[8px] rounded-[2px] transition-colors"
-                                style={{
-                                    backgroundColor: cell
-                                        ? getSlotColor(cell, allCodes)
-                                        : 'rgba(0,0,0,0.04)',
-                                }}
-                            />
-                        ))}
-                    </div>
+        <div className="tt-card" style={{ backgroundColor: bgColor }}>
+            {/* Top icons */}
+            <div className="card-icons-top">
+                <button onClick={e => { e.stopPropagation(); onRename(); }} className="card-icon-btn" title="Rename">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.8">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                </button>
+                <button onClick={e => { e.stopPropagation(); onDelete(); }} className="card-icon-btn card-icon-btn-delete" title="Delete">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E11D48" strokeWidth="1.8">
+                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                    </svg>
+                </button>
+            </div>
+
+            {/* Mini grid */}
+            <div className="mini-grid">
+                <div className="mini-grid-rows">
+                    {gridRows.map((row, rowIdx) => (
+                        <div key={rowIdx} className="mini-grid-row">
+                            {row.map((cell, colIdx) => (
+                                <div
+                                    key={colIdx}
+                                    className="mini-grid-cell"
+                                    style={{ backgroundColor: cell ? getSlotColor(cell, allCodes) : 'rgba(0,0,0,0.06)' }}
+                                />
+                            ))}
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            {/* Card Body */}
-            <div className="px-5 pb-5 pt-3">
-                <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                        <h3 className="text-[16px] font-bold text-black truncate group-hover:text-[#3B5BDB] transition-colors">
-                            {tt.title}
-                        </h3>
-                        <p className="text-[12px] text-gray-400 font-medium mt-0.5">
-                            {createdDate} · {tt.slots.length} course{tt.slots.length !== 1 ? 's' : ''}
-                        </p>
-                    </div>
-                    <div
-                        className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0 ml-2"
-                        style={{ backgroundColor: accentColor }}
-                    />
-                </div>
+            {/* Title */}
+            <div>
+                <h3 className="card-title">{tt.title}</h3>
+                <p className="card-subtitle">Generated on</p>
+                {dateLabel && <p className="card-date">{dateLabel}</p>}
+            </div>
 
-                {/* Action Row */}
-                <div className="flex items-center gap-2 mt-3">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onView(); }}
-                        className="flex-1 py-2 rounded-[10px] text-[12px] font-semibold text-black bg-transparent border-[1.5px] border-gray-200 hover:border-[#A0C4FF] hover:bg-[#EEF2FF] transition-colors cursor-pointer"
-                    >
-                        View
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onRename(); }}
-                        className="py-2 px-3 rounded-[10px] border-[1.5px] border-gray-200 hover:border-[#E9D5FF] hover:bg-[#F5F3FF] transition-colors cursor-pointer bg-transparent"
-                        title="Rename"
-                    >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                        className="py-2 px-3 rounded-[10px] border-[1.5px] border-gray-200 hover:border-[#FFE4E6] hover:bg-[#FFF1F2] transition-colors cursor-pointer bg-transparent"
-                        title="Delete"
-                    >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                    </button>
-                </div>
+            {/* Buttons */}
+            <div className="card-btns">
+                <button onClick={e => { e.stopPropagation(); onView(); }} className="card-btn">View</button>
+                <button onClick={e => { e.stopPropagation(); onEdit(); }} className="card-btn">Edit</button>
             </div>
         </div>
     );
@@ -409,10 +556,13 @@ function TimetableCard({
 function TimetableDetailView({
     tt,
     onBack,
-    onRename,
     onDelete,
     onCopyLink,
+    onRename,
     onTogglePublic,
+    session,
+    router,
+    showToast,
 }: {
     tt: TimetableEntry;
     onBack: () => void;
@@ -420,29 +570,30 @@ function TimetableDetailView({
     onDelete: () => void;
     onCopyLink: () => void;
     onTogglePublic: () => void;
+    session: any;
+    router: any;
+    showToast: (msg: string) => void;
 }) {
     const allCodes = tt.slots.map(s => s.courseCode);
 
-    /* build the grid data */
-    type CellData = { code: string; faculty: string } | null;
+    type CellData = { code: string; courseName: string; facultyName: string; slot: string } | null;
     const theoryGrid: CellData[][] = Array.from({ length: 5 }, () => Array(13).fill(null));
     const labGrid: CellData[][] = Array.from({ length: 5 }, () => Array(13).fill(null));
 
     tt.slots.forEach(s => {
-        const parts = s.slot.split('+');
-        parts.forEach(p => {
+        s.slot.split('+').forEach(p => {
             if (THEORY_SLOTS[p]) {
                 const [r, c] = THEORY_SLOTS[p];
-                theoryGrid[r][c] = { code: s.courseCode, faculty: s.facultyName };
+                theoryGrid[r][c] = { code: s.courseCode, courseName: s.courseName, facultyName: s.facultyName, slot: p };
             }
             if (LAB_SLOTS[p]) {
                 const [r, c] = LAB_SLOTS[p];
-                labGrid[r][c] = { code: s.courseCode, faculty: s.facultyName };
+                labGrid[r][c] = { code: s.courseCode, courseName: s.courseName, facultyName: s.facultyName, slot: p };
             }
         });
     });
 
-    /* group courses for summary */
+    /* unique courses for Selected Courses table */
     const courseMap = new Map<string, { courseName: string; facultyName: string; slots: string[] }>();
     tt.slots.forEach(s => {
         if (!courseMap.has(s.courseCode)) {
@@ -452,201 +603,244 @@ function TimetableDetailView({
     });
     const courses = Array.from(courseMap.entries());
 
+    const THEORY_TIME_LABELS = [
+        '8:00am-\n8:50am', '8:55am-\n9:45am', '9:50am-\n10:40am', '10:45am-\n11:35am',
+        '11:40am-\n12:30pm', '12:30pm-\n1:20pm', '2:00pm-\n2:50pm', '2:55pm-\n3:45pm',
+        '3:50pm-\n4:40pm', '4:45pm-\n5:35pm', '5:40pm-\n6:30pm', '6:35pm-\n7:25pm', '',
+    ];
+    const LAB_TIME_LABELS = [
+        '8:00am-\n8:50am', '8:50am-\n9:40am', '9:50am-\n10:40am', '10:40am-\n11:30am',
+        '11:40am-\n12:30pm', '12:30pm-\n1:20pm', '2:00pm-\n2:50pm', '2:50pm-\n3:40pm',
+        '3:50pm-\n4:40pm', '4:40pm-\n5:30pm', '5:40pm-\n6:30pm', '6:30pm-\n7:20pm', '',
+    ];
+    const LUNCH_LETTERS = ['L', 'U', 'N', 'C', 'H'];
+
+    const handleDownload = async () => {
+        showToast('Preparing PDF...');
+        try {
+            await exportToPDF('saved-timetable-grid', `${tt.title}.pdf`);
+            showToast('PDF downloaded successfully!');
+        } catch (error) {
+            console.error('PDF error:', error);
+            showToast('Failed to generate PDF.');
+        }
+    };
+
     return (
-        <div className="w-[92%] max-w-[1400px] mt-[40px]">
-            {/* Header Bar */}
-            <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.03)] px-8 py-6 mb-6 flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={onBack}
-                        className="w-10 h-10 rounded-xl border-[1.5px] border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors cursor-pointer bg-white"
-                    >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-                    </button>
-                    <div>
-                        <h1 className="text-[24px] font-bold text-black leading-tight">{tt.title}</h1>
-                        <p className="text-[13px] text-gray-400 font-medium">
-                            {tt.slots.length} course{tt.slots.length !== 1 ? 's' : ''} · Created {tt.createdAt ? new Date(tt.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={onRename} className="py-2.5 px-4 rounded-xl border-[1.5px] border-gray-200 text-[13px] font-semibold text-gray-600 hover:border-[#E9D5FF] hover:bg-[#F5F3FF] transition-colors cursor-pointer bg-white flex items-center gap-2">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                        Rename
-                    </button>
-                    <button onClick={onDelete} className="py-2.5 px-4 rounded-xl border-[1.5px] border-gray-200 text-[13px] font-semibold text-gray-600 hover:border-[#FFE4E6] hover:bg-[#FFF1F2] transition-colors cursor-pointer bg-white flex items-center gap-2">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                        Delete
-                    </button>
-                </div>
-            </div>
-
-            {/* Timetable Grid */}
-            <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.03)] p-6 mb-6 overflow-x-auto">
-                <table className="w-full min-w-[900px] border-collapse text-[11px]">
-                    <thead>
-                        <tr>
-                            <th className="p-2 text-left text-[12px] font-bold text-gray-700 border-b-2 border-gray-100 w-[80px]"></th>
-                            {THEORY_TIMES.map((t, i) => (
-                                <th key={i} className="p-1.5 text-center text-[10px] font-semibold text-gray-500 border-b-2 border-gray-100" style={i === 5 ? { borderLeft: '3px solid #E5E7EB' } : {}}>
-                                    {t}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {DAYS.map((day, rowIdx) => (
-                            <>
-                                {/* Theory row */}
-                                <tr key={`theory-${day}`}>
-                                    <td rowSpan={2} className="p-2 text-[12px] font-bold text-gray-700 border-b border-gray-100 align-middle">
-                                        {day}
-                                    </td>
-                                    {theoryGrid[rowIdx].map((cell, colIdx) => {
-                                        const theoryLabel = theoryLabels[rowIdx]?.[colIdx] || '';
-                                        return (
-                                            <td
-                                                key={colIdx}
-                                                className="p-1 border-b border-gray-50 text-center align-middle"
-                                                style={colIdx === 5 ? { borderLeft: '3px solid #E5E7EB' } : {}}
-                                            >
-                                                {cell ? (
-                                                    <div
-                                                        className="rounded-lg px-1 py-1.5 text-[10px] font-semibold leading-tight"
-                                                        style={{ backgroundColor: getSlotColor(cell.code, allCodes) }}
-                                                    >
-                                                        <div>{theoryLabel}</div>
-                                                        <div className="text-[8px] font-medium opacity-70 mt-0.5 truncate">{cell.code}</div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-[9px] text-gray-300 font-medium">{theoryLabel}</div>
-                                                )}
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                                {/* Lab row */}
-                                <tr key={`lab-${day}`}>
-                                    {labGrid[rowIdx].map((cell, colIdx) => {
-                                        const labLabel = labLabels[rowIdx]?.[colIdx] || '';
-                                        return (
-                                            <td
-                                                key={colIdx}
-                                                className="p-1 border-b border-gray-100 text-center align-middle"
-                                                style={colIdx === 5 ? { borderLeft: '3px solid #E5E7EB' } : {}}
-                                            >
-                                                {cell ? (
-                                                    <div
-                                                        className="rounded-lg px-1 py-1 text-[9px] font-semibold leading-tight"
-                                                        style={{ backgroundColor: getSlotColor(cell.code, allCodes) }}
-                                                    >
-                                                        <div>{labLabel}</div>
-                                                        <div className="text-[8px] font-medium opacity-70 truncate">{cell.code}</div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-[9px] text-gray-300 font-medium">{labLabel}</div>
-                                                )}
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            </>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Bottom Section: Course Summary + Actions */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 mb-12">
-                {/* Course Summary */}
-                <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.03)] p-8">
-                    <h2 className="text-[18px] font-bold text-black mb-6">Selected Courses</h2>
-                    <div className="space-y-3">
-                        {courses.map(([code, info]) => (
-                            <div key={code} className="flex items-center gap-4 py-3 px-4 rounded-2xl bg-gray-50 hover:bg-[#F8FAFC] transition-colors">
-                                <div
-                                    className="w-3 h-10 rounded-full flex-shrink-0"
-                                    style={{ backgroundColor: getSlotColor(code, allCodes) }}
-                                />
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-[13px] font-bold text-black">{code}</span>
-                                        <span className="text-[12px] text-gray-400">·</span>
-                                        <span className="text-[12px] text-gray-500 font-medium truncate">{info.courseName}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 mt-1">
-                                        <span className="text-[11px] text-gray-400 font-medium">{info.facultyName}</span>
-                                        <span className="text-[11px] text-gray-300">|</span>
-                                        <span className="text-[11px] text-gray-400 font-medium">{info.slots.join(', ')}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Share & Actions Panel */}
-                <div className="flex flex-col gap-6">
-                    <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.03)] p-8">
-                        <h2 className="text-[16px] font-bold text-black mb-4">Sharing</h2>
-
-                        {/* Public Toggle */}
-                        <div className="flex items-center justify-between mb-5">
-                            <div>
-                                <p className="text-[14px] font-semibold text-gray-700">Public Access</p>
-                                <p className="text-[12px] text-gray-400 mt-0.5">Allow anyone with the link to view</p>
-                            </div>
-                            <button
-                                onClick={onTogglePublic}
-                                className={`w-12 h-7 rounded-full transition-colors cursor-pointer border-none flex items-center px-0.5 ${tt.isPublic ? 'bg-[#22C55E]' : 'bg-gray-200'
-                                    }`}
-                            >
-                                <div
-                                    className={`w-6 h-6 bg-white rounded-full shadow-sm transition-transform ${tt.isPublic ? 'translate-x-5' : 'translate-x-0'
-                                        }`}
-                                />
-                            </button>
-                        </div>
-
-                        {/* Copy Link */}
-                        <button
-                            onClick={onCopyLink}
-                            className="w-full py-3 rounded-xl bg-[#3B5BDB] text-white text-[14px] font-semibold hover:bg-[#364FC7] transition-colors cursor-pointer border-none flex items-center justify-center gap-2"
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg>
-                            Copy Share Link
+        <div className="dv-page">
+            {/* Main scrollable content */}
+            <div className="dv-content">
+                {/* Title row */}
+                <div className="dv-title-row">
+                    <button onClick={onBack} className="dv-back-btn">←</button>
+                    <h1 className="dv-title">{tt.title}</h1>
+                    <div className="dv-title-actions">
+                        <button onClick={onRename} className="dv-icon-btn" title="Rename">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                        </button>
+                        <button onClick={onDelete} className="dv-icon-btn dv-icon-btn-red" title="Delete">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E11D48" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                         </button>
                     </div>
+                </div>
 
-                    <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.03)] p-8">
-                        <h2 className="text-[16px] font-bold text-black mb-4">Quick Stats</h2>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-[#EEF2FF] rounded-2xl p-4 text-center">
-                                <p className="text-[24px] font-black text-[#3B5BDB]">{courses.length}</p>
-                                <p className="text-[11px] font-semibold text-gray-500 mt-0.5">Courses</p>
-                            </div>
-                            <div className="bg-[#F0FDF4] rounded-2xl p-4 text-center">
-                                <p className="text-[24px] font-black text-[#16A34A]">{tt.slots.length}</p>
-                                <p className="text-[11px] font-semibold text-gray-500 mt-0.5">Slots</p>
-                            </div>
+                {/* Timetable grid */}
+                <div className="dv-grid-box">
+                    <div className="dv-grid-scroll" id="saved-timetable-grid">
+                        <table className="dv-table">
+                            <thead>
+                                <tr>
+                                    <th className="dv-th-row-label dv-th-label-theory">Theory Hours</th>
+                                    {THEORY_TIME_LABELS.slice(0, 6).map((t, i) => (
+                                        <th key={`th-${i}`} className="dv-th-time dv-th-time-theory">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    ))}
+                                    <th className="dv-th-lunch" rowSpan={2}></th>
+                                    {THEORY_TIME_LABELS.slice(6).map((t, i) => (
+                                        <th key={`th-${i + 6}`} className="dv-th-time dv-th-time-theory">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    ))}
+                                </tr>
+                                <tr>
+                                    <th className="dv-th-row-label dv-th-label-lab">Lab Hours</th>
+                                    {LAB_TIME_LABELS.slice(0, 6).map((t, i) => (
+                                        <th key={`lh-${i}`} className="dv-th-time dv-th-time-lab">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    ))}
+                                    {/* Lunch th covered by rowSpan above */}
+                                    {LAB_TIME_LABELS.slice(6).map((t, i) => (
+                                        <th key={`lh-${i + 6}`} className="dv-th-time dv-th-time-lab">{t.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {DAYS.map((day, rowIdx) => (
+                                    <React.Fragment key={day}>
+                                        {/* Theory row */}
+                                        <tr>
+                                            <td className="dv-td-day" rowSpan={2}>{day}</td>
+                                            {theoryGrid[rowIdx].slice(0, 6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`t-${colIdx}`} className="dv-td dv-td-theory-filled">
+                                                        <div className="dv-cell-slot">{theoryLabels[rowIdx]?.[colIdx]}</div>
+                                                        <div className="dv-cell-code">{cell.code}</div>
+                                                        <div className="dv-cell-faculty">{cell.facultyName}</div>
+                                                    </td>
+                                                ) : (
+                                                    <td key={`t-${colIdx}`} className="dv-td dv-td-theory-empty">
+                                                        <div className="dv-cell-empty">{theoryLabels[rowIdx]?.[colIdx]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                            {/* Lunch column spans theory + lab rows */}
+                                            <td className="dv-td-lunch" rowSpan={2}>
+                                                <span className="dv-lunch-label">{LUNCH_LETTERS[rowIdx]}</span>
+                                            </td>
+                                            {theoryGrid[rowIdx].slice(6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`t-${colIdx + 6}`} className="dv-td dv-td-theory-filled">
+                                                        <div className="dv-cell-slot">{theoryLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                        <div className="dv-cell-code">{cell.code}</div>
+                                                        <div className="dv-cell-faculty">{cell.facultyName}</div>
+                                                    </td>
+                                                ) : (
+                                                    <td key={`t-${colIdx + 6}`} className="dv-td dv-td-theory-empty">
+                                                        <div className="dv-cell-empty">{theoryLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                        </tr>
+                                        {/* Lab row — day + lunch covered by rowSpan */}
+                                        <tr>
+                                            {labGrid[rowIdx].slice(0, 6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`l-${colIdx}`} className="dv-td dv-td-lab-filled">
+                                                        <div className="dv-cell-slot">{labLabels[rowIdx]?.[colIdx]}</div>
+                                                        <div className="dv-cell-code">{cell.code}</div>
+                                                        <div className="dv-cell-faculty">{cell.facultyName}</div>
+                                                    </td>
+                                                ) : (
+                                                    <td key={`l-${colIdx}`} className="dv-td dv-td-lab-empty">
+                                                        <div className="dv-cell-empty">{labLabels[rowIdx]?.[colIdx]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                            {/* Lunch td covered by rowSpan from theory row */}
+                                            {labGrid[rowIdx].slice(6).map((cell, colIdx) => (
+                                                cell ? (
+                                                    <td key={`l-${colIdx + 6}`} className="dv-td dv-td-lab-filled">
+                                                        <div className="dv-cell-slot">{labLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                        <div className="dv-cell-code">{cell.code}</div>
+                                                        <div className="dv-cell-faculty">{cell.facultyName}</div>
+                                                    </td>
+                                                ) : (
+                                                    <td key={`l-${colIdx + 6}`} className="dv-td dv-td-lab-empty">
+                                                        <div className="dv-cell-empty">{labLabels[rowIdx]?.[colIdx + 6]}</div>
+                                                    </td>
+                                                )
+                                            ))}
+                                        </tr>
+                                    </React.Fragment>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {/* Share / Download buttons */}
+                    <div className="dv-grid-actions">
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                                className={tt.isPublic ? 'dv-share-active-btn' : 'dv-share-btn'}
+                                onClick={onTogglePublic}
+                                title={tt.isPublic ? "Unshare Timetable" : "Share Timetable"}
+                            >
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="18" cy="5" r="3" />
+                                    <circle cx="6" cy="12" r="3" />
+                                    <circle cx="18" cy="19" r="3" />
+                                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                                </svg>
+                                {tt.isPublic ? 'Shared (Public)' : 'Share'}
+                            </button>
+                            {tt.isPublic && (
+                                <button
+                                    className="dv-share-btn"
+                                    onClick={onCopyLink}
+                                    title="Copy Public Link"
+                                >
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                    </svg>
+                                    Copy Link
+                                </button>
+                            )}
                         </div>
+                        <button className="dv-download-btn" onClick={handleDownload} >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                            Download
+                        </button>
                     </div>
                 </div>
-            </div>
-        </div>
-    );
-}
 
-/* ── Modal Wrapper ── */
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-            <div
-                className="bg-white rounded-[28px] shadow-2xl p-8 w-[90%] max-w-[420px] animate-[scaleIn_0.2s_ease]"
-                onClick={e => e.stopPropagation()}
-            >
-                {children}
+                {/* Selected Courses */}
+                <div className="dv-courses-box">
+                    <h2 className="dv-courses-title">Selected Courses</h2>
+                    <table className="dv-courses-table">
+                        <thead>
+                            <tr>
+                                <th>Slot</th>
+                                <th>Course Code</th>
+                                <th>Course Name</th>
+                                <th>Faculty</th>
+                                <th>Credit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {courses.map(([code, info]) => (
+                                <tr key={code} className="dv-course-row">
+                                    <td>{info.slots.join(', ')}</td>
+                                    <td>{code}</td>
+                                    <td>{info.courseName}</td>
+                                    <td>{info.facultyName}</td>
+                                    <td>—</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Bottom nav — same as list view */}
+            <div className="bottom-nav">
+                <div className="user-section">
+                    <div className="avatar">
+                        {session?.user?.image
+                            ? <Image src={session.user.image} alt="avatar" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} unoptimized referrerPolicy="no-referrer" />
+                            : (session?.user?.name?.[0] || '?')}
+                    </div>
+                    <span className="user-name">{session?.user?.name || 'Guest'}</span>
+                </div>
+                <div className="step-pills">
+                    {[1, 2, 3, 4].map(n => (
+                        <button
+                            key={n}
+                            onClick={() => {
+                                if (n === 1) router.push('/preferences');
+                                if (n === 2) router.push('/courses');
+                                if (n === 3) router.push('/timetable');
+                                if (n === 4) router.push('/saved');
+                            }}
+                            className={n === 4 ? 'step-pill-saved' : 'step-pill'}
+                        >
+                            {n === 4 ? '4. Saved' : n}
+                        </button>
+                    ))}
+                </div>
+                <div className="nav-btns">
+                    <button onClick={() => router.push('/timetable')} className="btn-prev">Previous</button>
+                    <button disabled className="btn-next" style={{ opacity: 0.4, cursor: 'not-allowed' }}>Next</button>
+                </div>
             </div>
         </div>
     );
