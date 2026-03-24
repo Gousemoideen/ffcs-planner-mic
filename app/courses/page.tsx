@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { fullCourseData } from '@/lib/type';
 import { getCourseType } from '@/lib/course_codes_map';
 import { clashMap } from '@/lib/slots';
+import { Toast } from '@/components/Toast';
 
 type FacultyEntry = {
     uid: string;
@@ -157,6 +158,7 @@ export default function CoursesPage() {
     const [clashingUids, setClashingUids] = useState<Set<string>>(new Set());
 
     const [deletedRow, setDeletedRow] = useState<{ faculty: FacultyEntry; index: number } | null>(null);
+    const [showDeletedToast, setShowDeletedToast] = useState(false);
 
     useEffect(() => {
         try {
@@ -332,13 +334,15 @@ export default function CoursesPage() {
     const handleRemoveAll = () => {
         setLastRemovedFaculties(faculties);
         setFaculties([]);
-        setDeletedRow(null);
+       // setDeletedRow(null);
+        setShowDeletedToast(true);
     };
 
     const handleUndoRemoveAll = () => {
         if (!lastRemovedFaculties || lastRemovedFaculties.length === 0) return;
         setFaculties(renumber(lastRemovedFaculties));
         setLastRemovedFaculties(null);
+        setShowDeletedToast(false);
     };
 
     if (!loaded) {
@@ -351,27 +355,37 @@ export default function CoursesPage() {
 
     return (
         <div className={`min-h-screen bg-[#F5E6D3] font-sans flex flex-col transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
-            <div className="flex-1 p-[clamp(16px,2vw,32px)] overflow-auto">
+            <div className="flex-1 p-[clamp(16px,2vw,32px)] overflow-auto flex flex-col">
+                {/* Show Start Over button when all courses deleted and toast dismissed */}
+                {faculties.length === 0 && !lastRemovedFaculties ? (
+                    <div className="flex items-center justify-center h-full">
+                        <button
+                            onClick={() => router.push('/preferences')}
+                            className="px-10 py-3 rounded-lg font-semibold text-lg bg-[#A0C4FF] hover:bg-[#90B4EF] text-black transition cursor-pointer"
+                        >
+                            Start Over
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {clashingUids.size > 0 && (
+                            <div className="bg-red-100 border-2 border-red-400 rounded-lg px-6 py-4 mb-6 flex items-center gap-3 animate-lucid-fade-up">
+                                <svg className="w-6 h-6 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <div>
+                                    <h3 className="text-red-800 font-bold text-lg">Slot Clash Detected!</h3>
+                                    <p className="text-red-700 text-sm">Some courses have overlapping time slots. Courses with clashes are highlighted in red.</p>
+                                </div>
+                            </div>
+                        )}
 
-
-                {clashingUids.size > 0 && (
-                    <div className="bg-red-100 border-2 border-red-400 rounded-lg px-6 py-4 mb-6 flex items-center gap-3 animate-lucid-fade-up">
-                        <svg className="w-6 h-6 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        <div>
-                            <h3 className="text-red-800 font-bold text-lg">Slot Clash Detected!</h3>
-                            <p className="text-red-700 text-sm">Some courses have overlapping time slots. Courses with clashes are highlighted in red.</p>
+                    {/* ── Selected Courses Card ── */}
+                    <div className="bg-white rounded-2xl shadow-md h-[75vh] mb-4 animate-lucid-fade-up-delayed relative">
+                        {/* Green header */}
+                        <div className="bg-[#c6f6c6] px-6 py-4">
+                            <h2 className="text-2xl font-bold text-black">Selected Courses</h2>
                         </div>
-                    </div>
-                )}
-
-                {/* ── Selected Courses Card ── */}
-                <div className="bg-white rounded-2xl shadow-md overflow-hidden mb-4 animate-lucid-fade-up-delayed">
-                    {/* Green header */}
-                    <div className="bg-[#c6f6c6] px-6 py-4">
-                        <h2 className="text-2xl font-bold text-black">Selected Courses</h2>
-                    </div>
 
                     {/* Table header */}
                     <div className="grid grid-cols-[40px_minmax(80px,1fr)_minmax(100px,2fr)_minmax(60px,1fr)_minmax(80px,1fr)_minmax(80px,100px)] border-b border-gray-200 bg-white">
@@ -382,7 +396,20 @@ export default function CoursesPage() {
                         <div className="px-4 py-3 text-sm font-bold text-black">Faculty</div>
                         <div className="px-4 py-3 text-sm font-bold text-black"></div>
                     </div>
-
+                     {faculties.length === 0 && lastRemovedFaculties && lastRemovedFaculties.length > 0 && (
+                             <div className='flex flex-col items-center justify-center absolute w-full h-[55vh]'>   
+                                   <text className='text-3xl  text-gray-700'>All subjects have been deleted.</text>
+                                    
+                        <button
+                            onClick={() => router.push('/preferences')}
+                            className="px-10 py-3 rounded-2xl font-semibold text-lg shadow-2xl hover:bg-[#90B4EF] text-black transition cursor-pointer"
+                        >
+                            Start Over
+                        </button>
+                    </div>
+                                  
+                            )}
+<div className='overflow-y-scroll h-[55vh]'>
                     {/* Rows */}
                     {faculties.length === 0 && !lastRemovedFaculties ? (
                         <div className="px-6 py-10 text-center text-gray-400 text-sm">No courses selected yet</div>
@@ -479,21 +506,10 @@ export default function CoursesPage() {
                                 </div>
                             )}
                             {/* Remove all undo row */}
-                            {faculties.length === 0 && lastRemovedFaculties && lastRemovedFaculties.length > 0 && (
-                                <div className="grid grid-cols-[40px_minmax(80px,1fr)_minmax(100px,2fr)_minmax(60px,1fr)_minmax(80px,1fr)_minmax(80px,100px)] border-b border-gray-100 bg-gray-50 items-center">
-                                    <div />
-                                    <div className="col-span-4 px-4 py-3 text-sm text-gray-500 italic">All courses deleted.</div>
-                                    <div className="px-4 py-3">
-                                        <button
-                                            onClick={handleUndoRemoveAll}
-                                            className="text-sm font-bold text-gray-800 hover:text-black transition cursor-pointer"
-                                        >Undo</button>
-                                    </div>
-                                </div>
-                            )}
+                           
                         </div>
                     )}
-
+</div>
                     {/* Footer: Remove all */}
                     {faculties.length > 0 && (
                         <div className="px-6 py-3 border-t border-gray-100">
@@ -505,7 +521,9 @@ export default function CoursesPage() {
                             </button>
                         </div>
                     )}
-                </div>
+                    </div>
+                    </>
+                )}
             </div>
 
             {/* Bottom nav */}
@@ -592,6 +610,17 @@ export default function CoursesPage() {
                 .animate-cartoon-move-down { animation: cartoonMoveDown 620ms cubic-bezier(0.22,0.7,0.2,1); }
                 .animate-dust-out { animation: dustOut 420ms steps(6,end) forwards; }
             `}</style>
+
+            {showDeletedToast && (
+                <Toast
+                    message="All courses have been deleted."
+                    type="warning"
+                    onUndo={handleUndoRemoveAll}
+                    onDismiss={() => setShowDeletedToast(false)}
+                    showTimer={true}
+                    timerDuration={3000}
+                />
+            )}
         </div>
     );
 }
