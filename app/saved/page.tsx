@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import Image from 'next/image';
 import { getCourseType } from '@/lib/course_codes_map';
 import { fullCourseData } from '@/lib/type';
 import { useTimetable } from '@/lib/TimeTableContext';
@@ -366,37 +365,49 @@ export default function SavedPage() {
                         </div>
                     </div>
 
-                    {/* Bottom nav bar */}
-                    <div className="bottom-nav">
-                        <div className="user-section">
-                            <div className="avatar">
-                                {session?.user?.image
-                                    ? <Image src={session.user.image} alt="avatar" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} unoptimized referrerPolicy="no-referrer" />
-                                    : (session?.user?.name?.[0] || '?')}
+                    {/* Bottom Navigation */}
+                    <div className="bg-white border-t border-gray-300 py-4 px-[clamp(16px,2vw,32px)] shadow-lg animate-lucid-fade-up-delayed shrink-0">
+                        <div className="flex flex-wrap items-center justify-between max-w-7xl mx-auto gap-3">
+                            <div className="flex items-center gap-3">
+                                {session?.user?.image ? (
+                                    <img src={session.user.image} alt="User avatar" className="w-10 h-10 rounded-full" referrerPolicy="no-referrer" />
+                                ) : (
+                                    <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
+                                )}
+                                <span className="text-gray-700 text-sm font-semibold">{session?.user?.name || 'Guest'}</span>
                             </div>
-                            <span className="user-name">{session?.user?.name || 'Guest'}</span>
-                        </div>
 
-                        <div className="step-pills">
-                            {[1, 2, 3, 4].map(n => (
+                            <div className="flex flex-wrap items-center gap-2">
+                                {[1, 2, 3, 4].map((num) => (
+                                    <button
+                                        key={num}
+                                        onClick={() => {
+                                            if (num === 1) router.push('/preferences');
+                                            if (num === 2) router.push('/courses');
+                                            if (num === 3) router.push('/timetable');
+                                            if (num === 4) router.push('/saved');
+                                        }}
+                                        className={`px-5 py-2 rounded-lg font-semibold text-sm cursor-pointer ${num === 4 ? 'bg-[#A0C4FF] text-black' : 'bg-[#A0C4FF]/40 text-gray-700'}`}
+                                    >
+                                        {num === 4 ? '4. Saved' : num}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="flex gap-3">
                                 <button
-                                    key={n}
-                                    onClick={() => {
-                                        if (n === 1) router.push('/preferences');
-                                        if (n === 2) router.push('/courses');
-                                        if (n === 3) router.push('/timetable');
-                                        if (n === 4) router.push('/saved');
-                                    }}
-                                    className={n === 4 ? 'step-pill-saved' : 'step-pill'}
+                                    onClick={() => router.push('/timetable')}
+                                    className="px-8 py-2.5 border-2 border-gray-400 rounded-lg font-semibold text-sm hover:bg-gray-50 text-black transition cursor-pointer"
                                 >
-                                    {n === 4 ? '4. Saved' : n}
+                                    Previous
                                 </button>
-                            ))}
-                        </div>
-
-                        <div className="nav-btns">
-                            <button onClick={() => router.back()} className="btn-prev">Previous</button>
-                            <button disabled className="btn-next" style={{ opacity: 0.4, cursor: 'not-allowed' }}>Next</button>
+                                <button
+                                    disabled
+                                    className="px-10 py-2.5 rounded-lg font-semibold text-sm bg-[#A0C4FF] text-black transition-all duration-200 cursor-not-allowed opacity-50"
+                                >
+                                    Next
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </>
@@ -811,35 +822,49 @@ function TimetableDetailView({
                 </div>
             </div>
 
-            {/* Bottom nav — same as list view */}
-            <div className="bottom-nav">
-                <div className="user-section">
-                    <div className="avatar">
-                        {session?.user?.image
-                            ? <Image src={session.user.image} alt="avatar" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} unoptimized referrerPolicy="no-referrer" />
-                            : (session?.user?.name?.[0] || '?')}
+            {/* Bottom Navigation */}
+            <div className="bg-white border-t border-gray-300 py-4 px-[clamp(16px,2vw,32px)] shadow-lg animate-lucid-fade-up-delayed shrink-0">
+                <div className="flex flex-wrap items-center justify-between max-w-7xl mx-auto gap-3">
+                    <div className="flex items-center gap-3">
+                        {session?.user?.image ? (
+                            <img src={session.user.image} alt="User avatar" className="w-10 h-10 rounded-full" referrerPolicy="no-referrer" />
+                        ) : (
+                            <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
+                        )}
+                        <span className="text-gray-700 text-sm font-semibold">{session?.user?.name || 'Guest'}</span>
                     </div>
-                    <span className="user-name">{session?.user?.name || 'Guest'}</span>
-                </div>
-                <div className="step-pills">
-                    {[1, 2, 3, 4].map(n => (
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        {[1, 2, 3, 4].map((num) => (
+                            <button
+                                key={num}
+                                onClick={() => {
+                                    if (num === 1) router.push('/preferences');
+                                    if (num === 2) router.push('/courses');
+                                    if (num === 3) router.push('/timetable');
+                                    if (num === 4) router.push('/saved');
+                                }}
+                                className={`px-5 py-2 rounded-lg font-semibold text-sm cursor-pointer ${num === 4 ? 'bg-[#A0C4FF] text-black' : 'bg-[#A0C4FF]/40 text-gray-700'}`}
+                            >
+                                {num === 4 ? '4. Saved' : num}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex gap-3">
                         <button
-                            key={n}
-                            onClick={() => {
-                                if (n === 1) router.push('/preferences');
-                                if (n === 2) router.push('/courses');
-                                if (n === 3) router.push('/timetable');
-                                if (n === 4) router.push('/saved');
-                            }}
-                            className={n === 4 ? 'step-pill-saved' : 'step-pill'}
+                            onClick={() => router.push('/timetable')}
+                            className="px-8 py-2.5 border-2 border-gray-400 rounded-lg font-semibold text-sm hover:bg-gray-50 text-black transition cursor-pointer"
                         >
-                            {n === 4 ? '4. Saved' : n}
+                            Previous
                         </button>
-                    ))}
-                </div>
-                <div className="nav-btns">
-                    <button onClick={() => router.push('/timetable')} className="btn-prev">Previous</button>
-                    <button disabled className="btn-next" style={{ opacity: 0.4, cursor: 'not-allowed' }}>Next</button>
+                        <button
+                            disabled
+                            className="px-10 py-2.5 rounded-lg font-semibold text-sm bg-[#A0C4FF] text-black transition-all duration-200 cursor-not-allowed opacity-50"
+                        >
+                            Next
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

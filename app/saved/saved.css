@@ -93,6 +93,22 @@
   }
 }
 
+@keyframes lucidFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-lucid-fade-up-delayed {
+  animation: lucidFadeUp 520ms ease-out;
+}
+
 /* ── Toast ── */
 .toast {
   position: fixed;
