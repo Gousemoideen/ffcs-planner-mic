@@ -83,21 +83,22 @@ export default function PreferencesPage() {
     const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
     const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
     const [selectedFaculties, setSelectedFaculties] = useState<string[]>([]);
+    const [savedFacultyPreferences, setSavedFacultyPreferences] = useState<string[]>([]);
     const [facultyPriority, setFacultyPriority] = useState<'slot' | 'faculty'>('slot');
     const [isVisible, setIsVisible] = useState(false);
 
     const moveFacultyUp = (index: number) => {
         if (index === 0) return;
-        const updated = [...selectedFaculties];
+        const updated = [...savedFacultyPreferences];
         [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
-        setSelectedFaculties(updated);
+        setSavedFacultyPreferences(updated);
     };
 
     const moveFacultyDown = (index: number) => {
-        if (index === selectedFaculties.length - 1) return;
-        const updated = [...selectedFaculties];
+        if (index === savedFacultyPreferences.length - 1) return;
+        const updated = [...savedFacultyPreferences];
         [updated[index + 1], updated[index]] = [updated[index], updated[index + 1]];
-        setSelectedFaculties(updated);
+        setSavedFacultyPreferences(updated);
     };
     // Load preferences from cookies on mount
     useEffect(() => {
@@ -128,7 +129,7 @@ export default function PreferencesPage() {
             setSelectedSubjects(keepFirst(Array.isArray(parsed) ? parsed : []));
         }
         if (savedSlots) setSelectedSlots(JSON.parse(savedSlots));
-        if (savedFaculties) setSelectedFaculties(JSON.parse(savedFaculties));
+        if (savedFaculties) setSavedFacultyPreferences(JSON.parse(savedFaculties));
         if (savedPriority) setFacultyPriority(savedPriority as 'slot' | 'faculty');
 
 
@@ -141,9 +142,12 @@ export default function PreferencesPage() {
         setCookie('preferenceDomains', JSON.stringify(selectedDomains));
         setCookie('preferenceSubjects', JSON.stringify(selectedSubjects));
         setCookie('preferenceSlots', JSON.stringify(selectedSlots));
-        setCookie('preferenceMultipleFaculties', JSON.stringify(selectedFaculties));
         setCookie('facultyPriority', facultyPriority);
-    }, [currentStep, selectedDepartments, selectedDomains, selectedSubjects, selectedSlots, selectedFaculties, facultyPriority]);
+    }, [currentStep, selectedDepartments, selectedDomains, selectedSubjects, selectedSlots, facultyPriority]);
+
+    useEffect(() => {
+        setCookie('preferenceMultipleFaculties', JSON.stringify(savedFacultyPreferences));
+    }, [savedFacultyPreferences]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => setIsVisible(true), 40);
@@ -271,6 +275,14 @@ export default function PreferencesPage() {
     }, [selectedSubjects, selectedDomains, selectedSlots, departmentData]);
 
     const handleNext = () => {
+        if (currentStep === 5) {
+            const persisted = persistCurrentSelection(false);
+            if (persisted) {
+                setCurrentStep(6);
+            }
+            return;
+        }
+
         if (currentStep < 6) {
             setCurrentStep(prev => prev + 1);
         }
@@ -289,8 +301,10 @@ export default function PreferencesPage() {
     };
 
     const handleAddAnotherProfessor = () => {
-        setCurrentStep(5);
-        setCookie('preferenceStep', '5');
+        setSelectedSlots([]);
+        setSelectedFaculties([]);
+        setCurrentStep(4);
+        setCookie('preferenceStep', '4');
     };
 
     const handleDepartmentSelect = (dept: string) => {
@@ -318,7 +332,6 @@ export default function PreferencesPage() {
         setSelectedSlots(prev =>
             prev.includes(slot) ? prev.filter(s => s !== slot) : [...prev, slot]
         );
-        setSelectedFaculties([]);
     };
 
     const handleFacultySelect = (faculty: string) => {
@@ -327,7 +340,7 @@ export default function PreferencesPage() {
         );
     };
 
-    const saveCurrentSelection = () => {
+    const persistCurrentSelection = (resetWizard = true) => {
         if (selectedSubjects.length > 0 && selectedSlots.length > 0 && selectedFaculties.length > 0) {
             let newCourses: fullCourseData[] = [];
 
@@ -387,14 +400,35 @@ export default function PreferencesPage() {
                     console.error('Error saving preferenceCourses cookie:', error);
                     setCookie('preferenceCourses', JSON.stringify(newCourses));
                 }
+
+                setSavedFacultyPreferences(prev => {
+                    const merged = [...prev];
+                    selectedFaculties.forEach(faculty => {
+                        if (!merged.includes(faculty)) {
+                            merged.push(faculty);
+                        }
+                    });
+                    return merged;
+                });
             }
 
-            // Clear state after saving
-            setSelectedSubjects([]);
-            setSelectedSlots([]);
-            setSelectedFaculties([]);
-            setCurrentStep(1);
+            if (resetWizard) {
+                setSelectedSubjects([]);
+                setSelectedSlots([]);
+                setSelectedFaculties([]);
+                setCurrentStep(1);
+            } else {
+                setSelectedFaculties([]);
+            }
+
+            return true;
         }
+
+        return false;
+    };
+
+    const saveCurrentSelection = () => {
+        persistCurrentSelection(true);
     };
 
     const handleFinish = () => {
@@ -414,7 +448,7 @@ export default function PreferencesPage() {
             case 5:
                 return selectedFaculties.length > 0;
             case 6:
-                return selectedFaculties.length > 0;
+                return savedFacultyPreferences.length > 0;
             default:
                 return false;
         }
@@ -585,9 +619,9 @@ export default function PreferencesPage() {
 
                                                 <div className="bg-white/50 rounded-lg p-4 shadow-sm border border-white/60">
                                                     <p className="text-sm font-bold text-gray-800 mb-3">Your Faculty Preferences:</p>
-                                                    {selectedFaculties.length > 0 ? (
+                                                    {savedFacultyPreferences.length > 0 ? (
                                                         <div style={{ display: 'grid', gap: '8px' }}>
-                                                            {selectedFaculties.map((faculty, idx) => (
+                                                            {savedFacultyPreferences.map((faculty, idx) => (
                                                                 <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100">
                                                                     <span className="text-sm font-bold text-gray-900">{faculty}</span>
                                                                     <div className="flex gap-2 items-center">
@@ -600,15 +634,15 @@ export default function PreferencesPage() {
                                                                         </button>
                                                                         <button
                                                                             onClick={() => moveFacultyDown(idx)}
-                                                                            disabled={idx === selectedFaculties.length - 1}
-                                                                            className={`px-2 py-1 rounded border ${idx === selectedFaculties.length - 1 ? "opacity-30 cursor-not-allowed" : "hover:bg-gray-100"}`}
+                                                                            disabled={idx === savedFacultyPreferences.length - 1}
+                                                                            className={`px-2 py-1 rounded border ${idx === savedFacultyPreferences.length - 1 ? "opacity-30 cursor-not-allowed" : "hover:bg-gray-100"}`}
                                                                         >
                                                                             ↓
                                                                         </button>
                                                                         <button
                                                                             onClick={() => {
-                                                                                const updated = selectedFaculties.filter((_, i) => i !== idx);
-                                                                                setSelectedFaculties(updated);
+                                                                                const updated = savedFacultyPreferences.filter((_, i) => i !== idx);
+                                                                                setSavedFacultyPreferences(updated);
                                                                             }}
                                                                             className="text-red-500 hover:text-red-700 font-bold ml-2 text-lg hover:bg-red-50 rounded-full w-8 h-8 flex items-center justify-center transition-colors"
                                                                         >
@@ -650,7 +684,6 @@ export default function PreferencesPage() {
                                                  <button
                                                      onClick={(e) => {
                                                          e.stopPropagation();
-                                                         saveCurrentSelection();
                                                          router.push('/courses');
                                                      }}
                                                      title={'Save current preference and view all courses'}
