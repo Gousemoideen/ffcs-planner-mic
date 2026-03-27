@@ -39,10 +39,10 @@ type SelectedSlotState = {
     kind: 'theory' | 'lab';
 };
 
-const THEORY_SLOT_COLORS = ['#EEFFF0', '#E9FEEB', '#ECFFEE', '#F2FFF4', '#E5FDE8', '#EBFFED'];
-const LAB_SLOT_COLORS = ['#FFFCE6', '#FFFADB', '#FFF7CC', '#FFFBE2', '#FFF8D3', '#FFF4BE'];
-const ACTIVE_THEORY_COLOR = '#9FE8AB';
-const ACTIVE_LAB_COLOR = '#FFE77A';
+const THEORY_SLOT_COLORS = ['#DFFBEE', '#DFFBEE', '#DFFBEE', '#DFFBEE', '#DFFBEE', '#DFFBEE'];
+const LAB_SLOT_COLORS = ['#F6F2DD', '#F6F2DD', '#F6F2DD', '#F6F2DD', '#F6F2DD', '#F6F2DD'];
+const ACTIVE_THEORY_COLOR = '#B8EDC0';
+const ACTIVE_LAB_COLOR = '#F9EEAA';
 
 function getSlotColor(code: string, allCodes: string[], kind: 'theory' | 'lab' = 'theory') {
     const unique = [...new Set(allCodes)];
@@ -446,8 +446,8 @@ export default function TimetablePage() {
                                                                 : theoryCell
                                                                     ? getSlotColor(theoryCell.courseCode, allCodes, 'theory')
                                                                     : '#f8fdfb',
-                                                            filter: shouldDimTheory ? 'blur(1.8px) saturate(0.72)' : 'none',
-                                                            opacity: shouldDimTheory ? 0.42 : 1,
+                                                            filter: shouldDimTheory ? 'blur(0.35px) saturate(1)' : 'none',
+                                                            opacity: shouldDimTheory ? 0.9 : 1,
                                                             transform: isSelectedTheory ? 'scale(1.03)' : 'none',
                                                         }}
                                                         onClick={() => theoryCell && setSelectedSlot({ slot: theoryCell, kind: 'theory' })}
@@ -474,8 +474,8 @@ export default function TimetablePage() {
                                                                 : labCell
                                                                     ? getSlotColor(labCell.courseCode, allCodes, 'lab')
                                                                     : '#fbf9f0',
-                                                            filter: shouldDimLab ? 'blur(1.8px) saturate(0.72)' : 'none',
-                                                            opacity: shouldDimLab ? 0.42 : 1,
+                                                            filter: shouldDimLab ? 'blur(0.35px) saturate(1)' : 'none',
+                                                            opacity: shouldDimLab ? 0.9 : 1,
                                                             transform: isSelectedLab ? 'scale(1.03)' : 'none',
                                                         }}
                                                         onClick={() => labCell && setSelectedSlot({ slot: labCell, kind: 'lab' })}
