@@ -10,6 +10,7 @@ import { generateTT } from '@/lib/utils';
 import { getSlotViewPayload } from '@/lib/slot-view';
 import { fullCourseData, timetableDisplayData } from '@/lib/type';
 import { clearPlannerClientCache } from '@/lib/clientCache';
+import { getShortCourseName } from '@/lib/courseDisplay';
 
 const setCookie = (name: string, value: string) => {
     if (typeof document === 'undefined') return;
@@ -33,12 +34,174 @@ const deleteCookie = (name: string) => {
     document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
 };
 
-const SLOT_COLORS = ['#C8F7DC', '#E0D4F5', '#FFF3B0', '#FFD6E0', '#BDD7FF', '#B8F0E0'];
+const THEORY_FILLED_COLOR = '#BFF0C8';
+const THEORY_EMPTY_COLOR = '#E1F9E9';
+const LAB_FILLED_COLOR = '#FFE78A';
+const LAB_EMPTY_COLOR = '#FFF2BF';
+const THEORY_POPUP_COLOR = '#CFF3D5';
+const THEORY_POPUP_BORDER = '#6AA874';
+const LAB_POPUP_COLOR = '#FFF0A6';
+const LAB_POPUP_BORDER = '#8F8443';
 
-function getSlotColor(code: string, allCodes: string[]) {
-    const unique = [...new Set(allCodes)];
-    const idx = unique.indexOf(code);
-    return SLOT_COLORS[idx % SLOT_COLORS.length];
+function isSameSlot(a: timetableDisplayData | null, b: timetableDisplayData | null) {
+    if (!a || !b) return false;
+    return (
+        a.courseCode === b.courseCode &&
+        a.courseName === b.courseName &&
+        a.slotName === b.slotName &&
+        a.facultyName === b.facultyName
+    );
+}
+
+type HighlightedCell = {
+    rect: { top: number; left: number; width: number; height: number };
+    label: string;
+    courseCode: string;
+    backgroundColor: string;
+};
+
+type SlotCategory = 'theory' | 'lab';
+
+function getSlotTokens(slotName: string) {
+    return slotName
+        .split('+')
+        .map(token => token.trim())
+        .filter(Boolean);
+}
+
+function TimetableTable({
+    scheduleRows,
+    leftTimes,
+    rightTimes,
+    theoryGrid,
+    labGrid,
+    selectedSlot,
+    openSelectedSlot,
+    exportMode = false,
+}: {
+    scheduleRows: ReturnType<typeof getSlotViewPayload>['scheduleRows'];
+    leftTimes: ReturnType<typeof getSlotViewPayload>['leftTimes'];
+    rightTimes: ReturnType<typeof getSlotViewPayload>['rightTimes'];
+    theoryGrid: (timetableDisplayData | null)[][];
+    labGrid: (timetableDisplayData | null)[][];
+    selectedSlot: timetableDisplayData | null;
+    openSelectedSlot: (slot: timetableDisplayData, category: SlotCategory) => void;
+    exportMode?: boolean;
+}) {
+    return (
+        <table className={`w-full table-fixed border-collapse bg-white text-center min-w-full ${exportMode ? '' : 'h-full'}`}>
+            <thead className={exportMode ? '' : 'h-[48px]'}>
+                <tr className={`border-b-[2px] border-white ${exportMode ? 'h-[74px]' : 'h-[30px]'}`}>
+                    <th className={`text-center font-bold text-black border-r-[2px] border-white bg-white ${exportMode ? 'w-[150px] p-3 text-[20px] leading-tight' : 'w-[5vw] p-0.5 text-[9px] leading-tight'}`}>Theory Hours</th>
+                    {[...leftTimes, { theory: '', lab: '' }, ...rightTimes].map((t, i) => (
+                        <th key={i} className={`text-center font-bold text-black border-r-[2px] border-white bg-white ${i === 6 ? (exportMode ? 'w-[42px] px-0' : 'w-[24px] px-0') : (exportMode ? 'min-w-[132px] p-2 text-[16px] leading-tight' : 'min-w-[50px] p-0.5 text-[10px] leading-tight')}`}>
+                            {t.theory ? t.theory.split('-').map((part, idx, arr) => (
+                                <span key={idx} className="block whitespace-nowrap">{part}{idx < arr.length - 1 ? '-' : ''}</span>
+                            )) : null}
+                        </th>
+                    ))}
+                </tr>
+                <tr className={`border-b-[2px] border-white ${exportMode ? 'h-[74px]' : 'h-[30px]'}`}>
+                    <th className={`text-center font-bold text-black border-r-[2px] border-white bg-white ${exportMode ? 'w-[150px] p-3 text-[20px] leading-tight' : 'w-[5vw] p-0.5 text-[9px] leading-tight'}`}>Lab Hours</th>
+                    {[...leftTimes, { theory: '', lab: '' }, ...rightTimes].map((t, i) => (
+                        <th key={i} className={`text-center font-bold text-black border-r-[2px] border-white bg-white ${i === 6 ? (exportMode ? 'w-[42px] px-0' : 'w-[24px] px-0') : (exportMode ? 'min-w-[132px] p-2 text-[16px] leading-tight' : 'min-w-[50px] p-0.5 text-[10px] leading-tight')}`}>
+                            {t.lab ? t.lab.split('-').map((part, idx, arr) => (
+                                <span key={idx} className="block whitespace-nowrap">{part}{idx < arr.length - 1 ? '-' : ''}</span>
+                            )) : null}
+                        </th>
+                    ))}
+                </tr>
+            </thead>
+            <tbody className="bg-white">
+                {scheduleRows.map((row, rowIdx) => (
+                    <tr key={row.day} className={exportMode ? '' : 'group h-[20%]'}>
+                        <td className={`text-black text-center align-middle border-r-[2px] border-white bg-white font-bold ${exportMode ? 'w-[150px] p-0 text-[20px]' : 'w-[5vw] p-0 text-[9px]'}`}>{row.day}</td>
+                        {Array.from({ length: 13 }).map((_, colIdx) => {
+                            if (colIdx === 6) {
+                                const lunchLetters = ['L', 'U', 'N', 'C', 'H'];
+                                return (
+                                    <td key="lunch-spacer" className={`border-r-[2px] border-white align-middle bg-[#f8f9fa] ${exportMode ? 'w-[42px]' : 'w-[24px]'}`}>
+                                        <div className="flex h-full flex-col items-center justify-center">
+                                            <span className={`font-black text-black opacity-80 ${exportMode ? 'text-[18px]' : 'text-[9px]'}`}>
+                                                {lunchLetters[rowIdx]}
+                                            </span>
+                                        </div>
+                                    </td>
+                                );
+                            }
+
+                            const theoryCell = theoryGrid[rowIdx][colIdx];
+                            const labCell = labGrid[rowIdx][colIdx];
+                            const theoryBackgroundColor = theoryCell ? THEORY_FILLED_COLOR : THEORY_EMPTY_COLOR;
+                            const labBackgroundColor = labCell ? LAB_FILLED_COLOR : LAB_EMPTY_COLOR;
+
+                            let theoryLabel = '';
+                            let labLabel = '';
+                            if (colIdx < 6) {
+                                theoryLabel = row.theoryLeft[colIdx].label;
+                                labLabel = row.labLeft[colIdx].label;
+                            } else {
+                                theoryLabel = row.theoryRight[colIdx - 7].label;
+                                labLabel = row.labRight[colIdx - 7].label;
+                            }
+
+                            return (
+                                <td key={colIdx} className="align-top border-r-[2px] border-white p-0 bg-white">
+                                    <div className={`grid w-full grid-rows-2 gap-0 ${exportMode ? 'min-h-[164px]' : 'h-full min-h-[68px]'}`}>
+                                        <div
+                                            data-slot-label={theoryLabel}
+                                            data-slot-category="theory"
+                                            data-bgcolor={theoryBackgroundColor}
+                                            className={`relative flex flex-col items-center justify-center transition-all cursor-pointer ${theoryCell ? 'z-10' : ''} ${isSameSlot(selectedSlot, theoryCell) ? 'brightness-110' : ''} ${exportMode ? 'min-h-[82px] px-2.5 py-1.5' : 'h-full py-0'}`}
+                                            style={{ backgroundColor: theoryBackgroundColor }}
+                                            onClick={() => theoryCell && openSelectedSlot(theoryCell, 'theory')}
+                                        >
+                                            {theoryCell ? (
+                                                <>
+                                                    <span className={`font-bold text-black leading-tight ${exportMode ? 'text-[15px]' : 'text-[10px]'}`}>{theoryLabel}</span>
+                                                    <span className={`font-bold text-black opacity-80 uppercase leading-tight ${exportMode ? 'mt-1 px-1 text-[13px]' : 'px-1 text-[8px] max-w-[62px] truncate'}`}>{theoryCell.courseCode}</span>
+                                                    {exportMode && (
+                                                        <span className="mt-1 px-2 text-center text-[11px] font-semibold leading-tight text-black/85 break-words line-clamp-2">
+                                                            {getShortCourseName(theoryCell.courseName)}
+                                                        </span>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <span className={`font-bold text-[#4ea075] ${exportMode ? 'text-[15px]' : 'text-[10px]'}`}>{theoryLabel}</span>
+                                            )}
+                                        </div>
+
+                                        <div
+                                            data-slot-label={labLabel}
+                                            data-slot-category="lab"
+                                            data-bgcolor={labBackgroundColor}
+                                            className={`relative flex flex-col items-center justify-center transition-all cursor-pointer ${labCell ? 'z-10' : ''} ${isSameSlot(selectedSlot, labCell) ? 'brightness-110' : ''} ${exportMode ? 'min-h-[82px] px-2.5 py-1.5' : 'h-full py-0'}`}
+                                            style={{ backgroundColor: labBackgroundColor }}
+                                            onClick={() => labCell && openSelectedSlot(labCell, 'lab')}
+                                        >
+                                            {labCell ? (
+                                                <>
+                                                    <span className={`font-bold text-black leading-tight ${exportMode ? 'text-[15px]' : 'text-[10px]'}`}>{labLabel}</span>
+                                                    <span className={`font-bold text-black opacity-80 uppercase leading-tight ${exportMode ? 'mt-1 px-1 text-[13px]' : 'px-1 text-[8px] max-w-[62px] truncate'}`}>{labCell.courseCode}</span>
+                                                    {exportMode && (
+                                                        <span className="mt-1 px-2 text-center text-[11px] font-semibold leading-tight text-black/85 break-words line-clamp-2">
+                                                            {getShortCourseName(labCell.courseName)}
+                                                        </span>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <span className={`font-bold text-[#d4a044] ${exportMode ? 'text-[15px]' : 'text-[10px]'}`}>{labLabel}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </td>
+                            );
+                        })}
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    );
 }
 
 export default function TimetablePage() {
@@ -48,13 +211,15 @@ export default function TimetablePage() {
 
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedSlot, setSelectedSlot] = useState<timetableDisplayData | null>(null);
+    const [highlightedCells, setHighlightedCells] = useState<HighlightedCell[]>([]);
+    const [selectedSlotCategory, setSelectedSlotCategory] = useState<SlotCategory | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [toast, setToast] = useState('');
     const [clashMessage, setClashMessage] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [showSaveModal, setShowSaveModal] = useState(false);
+    const [showDownloadModal, setShowDownloadModal] = useState(false);
     const [timetableTitle, setTimetableTitle] = useState('My Schedule');
-
     const { scheduleRows, leftTimes, rightTimes } = useMemo(() => getSlotViewPayload(), []);
 
     const hasInitialized = useRef(false);
@@ -85,12 +250,60 @@ export default function TimetablePage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const currentTT = timetableData?.[currentIndex] || [];
-    const allCodes = currentTT.map(s => s.courseCode);
+    const currentTT = useMemo(() => timetableData?.[currentIndex] || [], [timetableData, currentIndex]);
+    const selectedCourses = useMemo(() => {
+        const courseMap = new Map<string, { courseName: string; facultyName: string; slots: string[] }>();
+        currentTT.forEach((slot) => {
+            if (!courseMap.has(slot.courseCode)) {
+                courseMap.set(slot.courseCode, {
+                    courseName: slot.courseName,
+                    facultyName: slot.facultyName,
+                    slots: [],
+                });
+            }
+            courseMap.get(slot.courseCode)!.slots.push(slot.slotName);
+        });
+        return Array.from(courseMap.entries());
+    }, [currentTT]);
+    const exportCreditsLabel = 'TBD';
 
     const showToast = useCallback((msg: string) => {
         setToast(msg);
         setTimeout(() => setToast(''), 3000);
+    }, []);
+
+    const clearSelectedSlot = useCallback(() => {
+        setSelectedSlot(null);
+        setHighlightedCells([]);
+        setSelectedSlotCategory(null);
+    }, []);
+
+    const openSelectedSlot = useCallback((
+        slot: timetableDisplayData,
+        category: SlotCategory,
+    ) => {
+        const slotTokens = getSlotTokens(slot.slotName);
+        const highlights: HighlightedCell[] = slotTokens.flatMap((token) => {
+            const nodeList = document.querySelectorAll<HTMLElement>(`[data-slot-label="${token}"][data-slot-category="${category}"]`);
+            return Array.from(nodeList).map((node) => {
+                const rect = node.getBoundingClientRect();
+                return {
+                    rect: {
+                        top: rect.top,
+                        left: rect.left,
+                        width: rect.width,
+                        height: rect.height,
+                    },
+                    label: token,
+                    courseCode: slot.courseCode,
+                backgroundColor: node.dataset.bgcolor || '#ffffff',
+            };
+        });
+    });
+
+        setSelectedSlot(slot);
+        setHighlightedCells(highlights);
+        setSelectedSlotCategory(category);
     }, []);
 
     const handleSave = async (customTitle?: string, options?: { skipRedirect?: boolean }) => {
@@ -161,7 +374,7 @@ export default function TimetablePage() {
         return null;
     };
 
-    const handleDownload = async () => {
+    const handleDownload = async (target: 'timetable' | 'slots') => {
         console.log('handleDownload called', { currentTTLength: currentTT.length });
         if (currentTT.length === 0) {
             showToast('No timetable data to download.');
@@ -170,12 +383,20 @@ export default function TimetablePage() {
         }
         showToast('Preparing PDF...');
         try {
-            await exportToPDF('rat', `timetable-option-${currentIndex + 1}.pdf`);
+            await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+            const elementId = target === 'timetable' ? 'rat-export' : 'selected-courses-export';
+            const filename = target === 'timetable'
+                ? `timetable-option-${currentIndex + 1}.pdf`
+                : `selected-courses-option-${currentIndex + 1}.pdf`;
+            await exportToPDF(elementId, filename);
             showToast('PDF downloaded successfully!');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('PDF error:', error);
             showToast('Failed to generate PDF. Please try again.');
-            window.alert('Failed to generate PDF: ' + (error?.message || String(error)));
+            const message = error instanceof Error ? error.message : String(error);
+            window.alert('Failed to generate PDF: ' + message);
+        } finally {
+            setShowDownloadModal(false);
         }
     };
 
@@ -270,9 +491,10 @@ export default function TimetablePage() {
             } else {
                 window.prompt('Copy this share link:', url);
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Share error:', error);
-            window.alert('Share Error: ' + (error?.message || String(error)));
+            const message = error instanceof Error ? error.message : String(error);
+            window.alert('Share Error: ' + message);
             showToast('Failed to share timetable. Please try again.');
         }
     };
@@ -347,108 +569,15 @@ export default function TimetablePage() {
                     
                     <div id="rat" className="flex-1 min-h-0 overflow-hidden rounded-[14px] border border-[#f1f1f1]">
                     <div className="h-full overflow-hidden">
-                    <table className="w-full h-full table-fixed border-collapse bg-white text-center min-w-full">
-                        <thead className="h-[48px]">
-                            <tr className="border-b-[2px] border-white h-[30px]">
-                                <th className="p-0.5 text-center text-[9px] leading-tight font-bold text-black border-r-[2px] border-white bg-white w-[5vw]">Theory Hours</th>
-                                {[...leftTimes, { theory: '', lab: '' }, ...rightTimes].map((t, i) => (
-                                    <th key={i} className={`p-0.5 text-center text-[10px] leading-tight font-bold text-black border-r-[2px] border-white bg-white ${i === 6 ? 'w-[24px] px-0' : 'min-w-[50px]'}`}>
-                                        {t.theory ? t.theory.split('-').map((part, idx, arr) => (
-                                            <span key={idx} className="block whitespace-nowrap">{part}{idx < arr.length - 1 ? '-' : ''}</span>
-                                        )) : null}
-                                    </th>
-                                ))}
-                            </tr>
-                            <tr className="border-b-[2px] border-white h-[30px]">
-                                <th className="p-0.5 text-center text-[9px] leading-tight font-bold text-black border-r-[2px] border-white bg-white w-[5vw]">Lab Hours</th>
-                                {[...leftTimes, { theory: '', lab: '' }, ...rightTimes].map((t, i) => (
-                                    <th key={i} className={`p-0.5 text-center text-[10px] leading-tight font-bold text-black border-r-[2px] border-white bg-white ${i === 6 ? 'w-[24px] px-0' : 'min-w-[50px]'}`}>
-                                        {t.lab ? t.lab.split('-').map((part, idx, arr) => (
-                                            <span key={idx} className="block whitespace-nowrap">{part}{idx < arr.length - 1 ? '-' : ''}</span>
-                                        )) : null}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white">
-                            {scheduleRows.map((row, rowIdx) => (
-                                <tr key={row.day} className="group h-[68px]">
-                                    <td className="p-0 text-[9px] font-bold text-black text-center align-middle w-[5vw] border-r-[2px] border-white bg-white">{row.day}</td>
-                                    {Array.from({ length: 13 }).map((_, colIdx) => {
-                                        if (colIdx === 6) {
-                                            // Space for Lunch
-                                            const lunchLetters = ['L', 'U', 'N', 'C', 'H'];
-                                            return (
-                                                <td key="lunch-spacer" className="w-[24px] border-r-[2px] border-white align-middle bg-[#f8f9fa]">
-                                                    <div className="flex h-full flex-col items-center justify-center">
-                                                        <span className="text-[9px] font-black text-black opacity-80">
-                                                            {lunchLetters[rowIdx]}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                            )
-                                        }
-                                        const actualColIdx = colIdx > 6 ? colIdx - 1 : colIdx;
-                                        const theoryCell = theoryGrid[rowIdx][colIdx];
-                                        const labCell = labGrid[rowIdx][colIdx];
-
-                                        // Get labels from scheduleRows
-                                        let theoryLabel = '';
-                                        let labLabel = '';
-                                        if (colIdx < 6) {
-                                            theoryLabel = row.theoryLeft[colIdx].label;
-                                            labLabel = row.labLeft[colIdx].label;
-                                        } else {
-                                            theoryLabel = row.theoryRight[colIdx - 7].label;
-                                            labLabel = row.labRight[colIdx - 7].label;
-                                        }
-
-                                        return (
-                                            <td key={colIdx} className="align-top border-r-[2px] border-white p-0 bg-white">
-                                                <div className="grid h-[68px] w-full grid-rows-2 gap-0">
-                                                    {/* Theory Slot */}
-                                                    <div
-                                                        className={`flex h-full flex-col items-center justify-center py-0 transition-all cursor-pointer ${theoryCell ? 'z-10' : ''}`}
-                                                        style={{
-                                                            backgroundColor: theoryCell ? getSlotColor(theoryCell.courseCode, allCodes) : '#e6f9ed',
-                                                        }}
-                                                        onClick={() => theoryCell && setSelectedSlot(theoryCell)}
-                                                    >
-                                                        {theoryCell ? (
-                                                            <>
-                                                                <span className="text-[8px] font-bold text-black leading-tight">{theoryLabel}</span>
-                                                                <span className="text-[6px] font-bold text-black opacity-80 uppercase truncate px-1 max-w-[52px] leading-tight">{theoryCell.courseCode}</span>
-                                                            </>
-                                                        ) : (
-                                                            <span className="text-[8px] font-bold text-[#4ea075]">{theoryLabel}</span>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Lab Slot */}
-                                                    <div
-                                                        className={`flex h-full flex-col items-center justify-center py-0 transition-all cursor-pointer ${labCell ? 'z-10' : ''}`}
-                                                        style={{
-                                                            backgroundColor: labCell ? getSlotColor(labCell.courseCode, allCodes) : '#fff6e0',
-                                                        }}
-                                                        onClick={() => labCell && setSelectedSlot(labCell)}
-                                                    >
-                                                        {labCell ? (
-                                                            <>
-                                                                <span className="text-[8px] font-bold text-black leading-tight">{labLabel}</span>
-                                                                <span className="text-[6px] font-bold text-black opacity-80 uppercase truncate px-1 max-w-[52px] leading-tight">{labCell.courseCode}</span>
-                                                            </>
-                                                        ) : (
-                                                            <span className="text-[8px] font-bold text-[#d4a044]">{labLabel}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <TimetableTable
+                        scheduleRows={scheduleRows}
+                        leftTimes={leftTimes}
+                        rightTimes={rightTimes}
+                        theoryGrid={theoryGrid}
+                        labGrid={labGrid}
+                        selectedSlot={selectedSlot}
+                        openSelectedSlot={openSelectedSlot}
+                    />
                     </div>
                     </div>
 
@@ -496,7 +625,7 @@ export default function TimetablePage() {
                                 Share
                             </button>
                             <button
-                                onClick={handleDownload}
+                                onClick={() => setShowDownloadModal(true)}
                                 className="flex items-center gap-2 bg-[#C8F7DC] hover:bg-[#b0eac8] text-black font-semibold py-2.5 px-6 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 text-[14px]"
                             >
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
@@ -573,50 +702,167 @@ export default function TimetablePage() {
                 </div>
             </div>
 
+            <div className="pointer-events-none fixed left-[-10000px] top-[-10000px]" aria-hidden="true">
+                <div id="rat-export" className="w-[2400px] bg-[#F8E8D2] p-12 font-sans">
+                    <div className="rounded-[32px] border border-[#efe7d6] bg-[#FFFBF0] p-8 shadow-[0_12px_40px_rgba(0,0,0,0.04)]">
+                        <div className="mb-8 flex items-center gap-5 px-1">
+                            <h1 className="text-[42px] font-bold text-black">{timetableTitle || 'My Schedule'}</h1>
+                            <div className="rounded-2xl border-2 border-green-400 bg-green-100 px-5 py-3 text-[22px] font-semibold text-green-800">
+                                PDF Export
+                            </div>
+                        </div>
+                        <div className="overflow-hidden rounded-[24px] border border-[#ece6d8] bg-white p-6">
+                            <TimetableTable
+                                scheduleRows={scheduleRows}
+                                leftTimes={leftTimes}
+                                rightTimes={rightTimes}
+                                theoryGrid={theoryGrid}
+                                labGrid={labGrid}
+                                selectedSlot={null}
+                                openSelectedSlot={openSelectedSlot}
+                                exportMode
+                            />
+                        </div>
+                    </div>
+                </div>
+                <div id="selected-courses-export" className="w-[1200px] bg-[#F8E8D2] p-12 font-sans">
+                    <div className="rounded-[36px] border border-[#d9d9d9] bg-white px-10 pt-8 pb-10 shadow-[0_12px_40px_rgba(0,0,0,0.04)]">
+                        <h2 className="mb-20 text-center text-[30px] leading-[1.2] font-black text-black">{timetableTitle || 'Selected Courses'}</h2>
+                        <div className="overflow-hidden border-y border-[#2c2c2c] bg-white">
+                            <table className="w-full border-collapse text-center">
+                                <thead className="bg-[#D9EBE5]">
+                                    <tr>
+                                        <th className="w-[15%] border-r border-[#d9e2de] px-5 py-4 text-[17px] font-black text-black">Slot</th>
+                                        <th className="w-[18%] border-r border-[#d9e2de] px-5 py-4 text-[17px] font-black text-black">Course Code</th>
+                                        <th className="w-[32%] border-r border-[#d9e2de] px-5 py-4 text-[17px] font-black text-black">Course Title</th>
+                                        <th className="w-[18%] border-r border-[#d9e2de] px-5 py-4 text-[17px] font-black text-black">Faculty</th>
+                                        <th className="w-[9%] border-r border-[#d9e2de] px-5 py-4 text-[17px] font-black text-black">Venue</th>
+                                        <th className="w-[8%] px-5 py-4 text-[17px] font-black text-black">Credits</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedCourses.map(([code, info]) => (
+                                        <tr key={code} className="border-t border-[#2c2c2c]">
+                                            <td className="px-5 py-4 text-[16px] font-medium text-black whitespace-pre-wrap">{info.slots.join('\n')}</td>
+                                            <td className="px-5 py-4 text-[16px] font-medium text-black">{code}</td>
+                                            <td className="px-5 py-4 text-[16px] font-medium text-black">{info.courseName}</td>
+                                            <td className="px-5 py-4 text-[16px] font-medium text-black">{info.facultyName}</td>
+                                            <td className="px-5 py-4 text-[16px] font-medium text-black">TBD</td>
+                                            <td className="px-5 py-4 text-[16px] font-medium text-black">TBD</td>
+                                        </tr>
+                                    ))}
+                                    <tr className="border-t border-[#2c2c2c] bg-[#E7E7E7]">
+                                        <td colSpan={6} className="px-5 py-4 text-center text-[18px] font-black text-black">
+                                            Total Credits: {exportCreditsLabel}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Popover */}
             {selectedSlot && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/20 backdrop-blur-[4px]" onClick={() => setSelectedSlot(null)}>
+                <div className="slot-detail-backdrop fixed inset-0 z-[500] flex items-center justify-center px-4" onClick={clearSelectedSlot}>
+                    {highlightedCells.map((highlightedCell) => (
+                        <div
+                            key={`${highlightedCell.label}-${highlightedCell.rect.top}-${highlightedCell.rect.left}`}
+                            className="pointer-events-none fixed z-[505] flex flex-col items-center justify-center shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
+                            style={{
+                                top: highlightedCell.rect.top,
+                                left: highlightedCell.rect.left,
+                                width: highlightedCell.rect.width,
+                                height: highlightedCell.rect.height,
+                                backgroundColor: selectedSlotCategory === 'theory' ? THEORY_POPUP_COLOR : LAB_POPUP_COLOR,
+                            }}
+                        >
+                            <span className="text-[10px] font-bold leading-tight text-black">{highlightedCell.label}</span>
+                            <span className="max-w-[62px] truncate px-1 text-[8px] font-bold uppercase leading-tight text-black opacity-80">
+                                {highlightedCell.courseCode}
+                            </span>
+                        </div>
+                    ))}
                     <div
-                        className="bg-white rounded-[40px] shadow-2xl p-12 w-[90%] max-w-[500px] relative animate-[scaleIn_0.2s_ease] border-4"
-                        style={{ borderColor: getSlotColor(selectedSlot.courseCode, allCodes) }}
+                        className="relative z-[510] flex shrink-0 flex-col animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[12px] border-[1.5px] px-5 pt-5 pb-4"
+                        style={{
+                            width: '335px',
+                            height: '312px',
+                            maxWidth: '92vw',
+                            backgroundColor: selectedSlotCategory === 'theory' ? THEORY_POPUP_COLOR : LAB_POPUP_COLOR,
+                            borderColor: selectedSlotCategory === 'theory' ? THEORY_POPUP_BORDER : LAB_POPUP_BORDER,
+                        }}
                         onClick={e => e.stopPropagation()}
                     >
                         <button
-                            onClick={() => setSelectedSlot(null)}
-                            className="absolute top-8 right-8 w-12 h-12 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors text-black"
+                            onClick={clearSelectedSlot}
+                            className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full text-black/80 transition-colors hover:bg-black/5 hover:text-black"
+                            aria-label="Close course details"
                         >
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3"><path d="M18 6L6 18M6 6l12 12" /></svg>
                         </button>
 
-                        <div className="mb-10">
-                            <span className="px-5 py-2 rounded-full text-[12px] font-black bg-gray-100 text-gray-500 uppercase tracking-widest mb-4 inline-block">Course Details</span>
-                            <h2 className="text-[32px] font-black text-black leading-tight mt-2">{selectedSlot.courseCode}</h2>
-                            <p className="text-[18px] font-bold text-gray-600 mt-2">{selectedSlot.courseName}</p>
+                        <div className="pr-8">
+                            <h2 className="text-center text-[22px] font-black leading-[1.1] text-black">
+                                {selectedSlot.courseCode} - {selectedSlot.courseName}
+                            </h2>
+                            <p className="mt-2 text-center text-[18px] font-black text-black">
+                                Slot: {selectedSlot.slotName}
+                            </p>
                         </div>
 
-                        <div className="space-y-8">
-                            <div className="flex gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-[20px]">👨‍🏫</div>
-                                <div>
-                                    <p className="text-[12px] font-black text-gray-300 uppercase tracking-widest mb-1">Faculty</p>
-                                    <p className="text-[18px] font-bold text-black">{selectedSlot.facultyName}</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-[20px]">🕒</div>
-                                <div>
-                                    <p className="text-[12px] font-black text-gray-300 uppercase tracking-widest mb-1">Slot</p>
-                                    <p className="text-[18px] font-bold text-black">{selectedSlot.slotName}</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-[20px]">📍</div>
-                                <div>
-                                    <p className="text-[12px] font-black text-gray-300 uppercase tracking-widest mb-1">Classroom</p>
-                                    <p className="text-[18px] font-bold text-black">Main Campus - TBD</p>
-                                </div>
-                            </div>
+                        <div className="mt-4 flex flex-1 flex-col justify-evenly">
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Faculty Name:</span>{' '}
+                                <span className="font-semibold text-black/75">{selectedSlot.facultyName || '-'}</span>
+                            </p>
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Course Name:</span>{' '}
+                                <span className="font-semibold text-black/75">{selectedSlot.courseName || '-'}</span>
+                            </p>
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Course Code:</span>{' '}
+                                <span className="font-semibold text-black/75">{selectedSlot.courseCode || '-'}</span>
+                            </p>
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Timing:</span>{' '}
+                                <span className="font-semibold text-black/75">{selectedSlot.slotName || '-'}</span>
+                            </p>
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Classroom:</span>{' '}
+                                <span className="font-semibold text-black/75">TBD</span>
+                            </p>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {showDownloadModal && (
+                <div className="fixed inset-0 z-[520] flex items-center justify-center bg-black/35 backdrop-blur-[4px]" onClick={() => setShowDownloadModal(false)}>
+                    <div className="w-[92%] max-w-[420px] rounded-[24px] bg-white p-7 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="text-[24px] font-black text-black">Download PDF</h2>
+                        <p className="mt-2 text-[15px] font-medium text-gray-600">Choose what you want to download.</p>
+                        <div className="mt-6 flex flex-col gap-3">
+                            <button
+                                onClick={() => handleDownload('timetable')}
+                                className="rounded-[16px] bg-[#C8F7DC] px-5 py-4 text-left text-[16px] font-bold text-black transition-colors hover:bg-[#b0eac8]"
+                            >
+                                Timetable
+                            </button>
+                            <button
+                                onClick={() => handleDownload('slots')}
+                                className="rounded-[16px] bg-[#A0C4FF] px-5 py-4 text-left text-[16px] font-bold text-black transition-colors hover:bg-[#8fb6f2]"
+                            >
+                                Selected Courses
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => setShowDownloadModal(false)}
+                            className="mt-5 w-full rounded-[14px] bg-[#f3f4f6] px-4 py-3 text-[15px] font-semibold text-gray-700 transition-colors hover:bg-[#e5e7eb]"
+                        >
+                            Cancel
+                        </button>
                     </div>
                 </div>
             )}

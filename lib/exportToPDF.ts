@@ -1,4 +1,5 @@
 import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 /**
@@ -24,6 +25,51 @@ export const exportToPDF = async (
         overflow: string;
         overflowX: string;
     }[] = [];
+    const styleFixups: {
+        el: HTMLElement;
+        styles: Partial<Record<keyof CSSStyleDeclaration, string>>;
+    }[] = [];
+
+    const colorProperties = [
+        'color',
+        'backgroundColor',
+        'borderTopColor',
+        'borderRightColor',
+        'borderBottomColor',
+        'borderLeftColor',
+        'outlineColor',
+        'textDecorationColor',
+        'caretColor',
+        'boxShadow',
+        'textShadow',
+        'fill',
+        'stroke',
+    ] as const;
+
+    const copySanitizedStyles = (sourceEl: HTMLElement, targetEl: HTMLElement) => {
+        const computed = window.getComputedStyle(sourceEl);
+        colorProperties.forEach((property) => {
+            const computedValue = computed[property];
+            if (computedValue) {
+                targetEl.style[property] = computedValue;
+            }
+        });
+    };
+
+    const normalizeComputedStyles = (el: HTMLElement) => {
+        const computed = window.getComputedStyle(el);
+        const originalStyles: Partial<Record<keyof CSSStyleDeclaration, string>> = {};
+
+        colorProperties.forEach((property) => {
+            originalStyles[property] = el.style[property];
+            const computedValue = computed[property];
+            if (computedValue) {
+                el.style[property] = computedValue;
+            }
+        });
+
+        styleFixups.push({ el, styles: originalStyles });
+    };
 
     let walker: HTMLElement | null = element;
     while (walker) {
@@ -40,40 +86,86 @@ export const exportToPDF = async (
         walker = walker.parentElement;
     }
 
+    normalizeComputedStyles(element);
+    element.querySelectorAll<HTMLElement>('*').forEach((child) => {
+        normalizeComputedStyles(child);
+    });
+
 
     try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const canvas = await (html2canvas as any)(element, {
-            backgroundColor: '#FFFBF0',
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            ignoreElements: (el: Element) => {
-                return el.tagName === 'IFRAME';
-            },
-        });
+        const buildPdfFromImage = (imgData: string, imgWidth: number, imgHeight: number) => {
+            const pdf = new jsPDF({
+                orientation: imgWidth > imgHeight ? 'landscape' : 'portrait',
+                unit: 'px',
+                format: [imgWidth, imgHeight],
+            });
 
-        const imgData = canvas.toDataURL('image/png');
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
+            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+            pdf.save(filename);
+        };
 
-        const pdf = new jsPDF({
-            orientation: imgWidth > imgHeight ? 'landscape' : 'portrait',
-            unit: 'px',
-            format: [imgWidth, imgHeight],
-        });
+        try {
+            const canvas = await html2canvas(element, {
+                backgroundColor: '#FFFBF0',
+                scale: 3,
+                width: element.scrollWidth,
+                height: element.scrollHeight,
+                windowWidth: element.scrollWidth,
+                windowHeight: element.scrollHeight,
+                useCORS: true,
+                logging: false,
+                onclone: (clonedDoc: Document) => {
+                    const clonedElement = clonedDoc.getElementById(elementId);
+                    if (!clonedElement) return;
 
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-        pdf.save(filename);
-    } catch (error: any) {
+                    copySanitizedStyles(element, clonedElement as HTMLElement);
+
+                    const originalNodes = element.querySelectorAll<HTMLElement>('*');
+                    const clonedNodes = clonedElement.querySelectorAll<HTMLElement>('*');
+                    originalNodes.forEach((originalNode, index) => {
+                        const clonedNode = clonedNodes[index];
+                        if (!clonedNode) return;
+                        copySanitizedStyles(originalNode, clonedNode);
+                    });
+                },
+                ignoreElements: (el: Element) => {
+                    return el.tagName === 'IFRAME';
+                },
+            });
+
+            buildPdfFromImage(canvas.toDataURL('image/png'), canvas.width, canvas.height);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (!message.includes('unsupported color function')) {
+                throw error;
+            }
+
+            const imgData = await toPng(element, {
+                backgroundColor: '#FFFBF0',
+                cacheBust: true,
+                pixelRatio: 3,
+                canvasWidth: element.scrollWidth,
+                canvasHeight: element.scrollHeight,
+                skipAutoScale: true,
+            });
+
+            buildPdfFromImage(imgData, element.scrollWidth * 3, element.scrollHeight * 3);
+        }
+    } catch (error: unknown) {
         console.error('Error generating PDF:', error);
-        window.alert('PDF Export Error: ' + (error?.message || String(error)));
+        const message = error instanceof Error ? error.message : String(error);
+        window.alert('PDF Export Error: ' + message);
         throw error;
     } finally {
         // Always restore original overflow values
         for (const fix of overflowFixups) {
             fix.el.style.overflow = fix.overflow;
             fix.el.style.overflowX = fix.overflowX;
+        }
+        for (const fix of styleFixups) {
+            for (const [property, value] of Object.entries(fix.styles)) {
+                fix.el.style[property as keyof CSSStyleDeclaration] = value ?? '';
+            }
         }
     }
 };
