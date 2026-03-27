@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import axios from "axios";
 import { getSlotViewPayload } from "@/lib/slot-view";
@@ -14,10 +14,36 @@ type SharedSlot = {
 
 const SLOT_COLORS = ['#C8F7DC', '#E0D4F5', '#FFF3B0', '#FFD6E0', '#BDD7FF', '#B8F0E0'];
 
+type SlotCategory = 'theory' | 'lab';
+
+type HighlightedCell = {
+    rect: { top: number; left: number; width: number; height: number };
+    label: string;
+    courseCode: string;
+    backgroundColor: string;
+};
+
 function getSlotColor(code: string, allCodes: string[]) {
     const unique = [...new Set(allCodes)];
     const idx = unique.indexOf(code);
     return SLOT_COLORS[idx % SLOT_COLORS.length];
+}
+
+function getSlotTokens(slotName: string) {
+    return slotName
+        .split('+')
+        .map(token => token.trim())
+        .filter(Boolean);
+}
+
+function isSameSharedSlot(a: SharedSlot | null, b: SharedSlot | null) {
+    if (!a || !b) return false;
+    return (
+        a.courseCode === b.courseCode &&
+        a.courseName === b.courseName &&
+        a.slot === b.slot &&
+        a.facultyName === b.facultyName
+    );
 }
 
 export default function SharePage() {
@@ -26,6 +52,8 @@ export default function SharePage() {
     const [title, setTitle] = useState("");
     const [loading, setLoading] = useState(true);
     const [selectedSlot, setSelectedSlot] = useState<SharedSlot | null>(null);
+    const [highlightedCells, setHighlightedCells] = useState<HighlightedCell[]>([]);
+    const [selectedSlotCategory, setSelectedSlotCategory] = useState<SlotCategory | null>(null);
 
     const { scheduleRows, leftTimes, rightTimes } = useMemo(() => getSlotViewPayload(), []);
 
@@ -59,6 +87,37 @@ export default function SharePage() {
             });
         });
     });
+
+    const clearSelectedSlot = useCallback(() => {
+        setSelectedSlot(null);
+        setHighlightedCells([]);
+        setSelectedSlotCategory(null);
+    }, []);
+
+    const openSelectedSlot = useCallback((slot: SharedSlot, category: SlotCategory) => {
+        const slotTokens = getSlotTokens(slot.slot);
+        const highlights: HighlightedCell[] = slotTokens.flatMap((token) => {
+            const nodeList = document.querySelectorAll<HTMLElement>(`[data-slot-label="${token}"][data-slot-category="${category}"]`);
+            return Array.from(nodeList).map((node) => {
+                const rect = node.getBoundingClientRect();
+                return {
+                    rect: {
+                        top: rect.top,
+                        left: rect.left,
+                        width: rect.width,
+                        height: rect.height,
+                    },
+                    label: token,
+                    courseCode: slot.courseCode,
+                    backgroundColor: node.dataset.bgcolor || '#ffffff',
+                };
+            });
+        });
+
+        setSelectedSlot(slot);
+        setHighlightedCells(highlights);
+        setSelectedSlotCategory(category);
+    }, []);
 
     if (loading) {
         return (
@@ -130,6 +189,8 @@ export default function SharePage() {
                                         
                                         const theoryCell = theoryGrid[rowIdx][colIdx];
                                         const labCell = labGrid[rowIdx][colIdx];
+                                        const theoryBackgroundColor = theoryCell ? getSlotColor(theoryCell.courseCode, allCodes) : '#e6f9ed';
+                                        const labBackgroundColor = labCell ? getSlotColor(labCell.courseCode, allCodes) : '#fff6e0';
 
                                         let theoryLabel = '';
                                         let labLabel = '';
@@ -146,9 +207,12 @@ export default function SharePage() {
                                                 <div className="flex flex-col h-full w-full">
                                                     {/* Theory Slot */}
                                                     <div
-                                                        className={`flex-1 flex flex-col items-center justify-center min-h-[40px] py-[4px] transition-all cursor-pointer ${theoryCell ? 'z-10 hover:shadow-sm' : ''}`}
-                                                        style={{ backgroundColor: theoryCell ? getSlotColor(theoryCell.courseCode, allCodes) : '#e6f9ed' }}
-                                                        onClick={() => theoryCell && setSelectedSlot(theoryCell)}
+                                                        data-slot-label={theoryLabel}
+                                                        data-slot-category="theory"
+                                                        data-bgcolor={theoryBackgroundColor}
+                                                        className={`flex-1 flex flex-col items-center justify-center min-h-[40px] py-[4px] transition-all cursor-pointer ${theoryCell ? 'z-10 hover:shadow-sm' : ''} ${isSameSharedSlot(selectedSlot, theoryCell) ? 'brightness-110' : ''}`}
+                                                        style={{ backgroundColor: theoryBackgroundColor }}
+                                                        onClick={() => theoryCell && openSelectedSlot(theoryCell, 'theory')}
                                                     >
                                                         {theoryCell ? (
                                                             <>
@@ -165,9 +229,12 @@ export default function SharePage() {
 
                                                     {/* Lab Slot */}
                                                     <div
-                                                        className={`flex-1 flex flex-col items-center justify-center min-h-[40px] py-[4px] transition-all cursor-pointer ${labCell ? 'z-10 hover:shadow-sm' : ''}`}
-                                                        style={{ backgroundColor: labCell ? getSlotColor(labCell.courseCode, allCodes) : '#fff6e0' }}
-                                                        onClick={() => labCell && setSelectedSlot(labCell)}
+                                                        data-slot-label={labLabel}
+                                                        data-slot-category="lab"
+                                                        data-bgcolor={labBackgroundColor}
+                                                        className={`flex-1 flex flex-col items-center justify-center min-h-[40px] py-[4px] transition-all cursor-pointer ${labCell ? 'z-10 hover:shadow-sm' : ''} ${isSameSharedSlot(selectedSlot, labCell) ? 'brightness-110' : ''}`}
+                                                        style={{ backgroundColor: labBackgroundColor }}
+                                                        onClick={() => labCell && openSelectedSlot(labCell, 'lab')}
                                                     >
                                                         {labCell ? (
                                                             <>
@@ -191,47 +258,73 @@ export default function SharePage() {
 
             {/* Popover */}
             {selectedSlot && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/20 backdrop-blur-[4px]" onClick={() => setSelectedSlot(null)}>
+                <div className="slot-detail-backdrop fixed inset-0 z-[500] flex items-center justify-center px-4" onClick={clearSelectedSlot}>
+                    {highlightedCells.map((highlightedCell) => (
+                        <div
+                            key={`${highlightedCell.label}-${highlightedCell.rect.top}-${highlightedCell.rect.left}`}
+                            className="pointer-events-none fixed z-[505] flex flex-col items-center justify-center brightness-110 shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
+                            style={{
+                                top: highlightedCell.rect.top,
+                                left: highlightedCell.rect.left,
+                                width: highlightedCell.rect.width,
+                                height: highlightedCell.rect.height,
+                                backgroundColor: highlightedCell.backgroundColor,
+                            }}
+                        >
+                            <span className="text-[10px] font-bold leading-tight text-black">{highlightedCell.label}</span>
+                            <span className="max-w-[65px] truncate px-1 text-[8px] font-bold uppercase leading-tight text-black opacity-80">
+                                {highlightedCell.courseCode}
+                            </span>
+                        </div>
+                    ))}
                     <div
-                        className="bg-white rounded-[32px] shadow-2xl p-10 w-[90%] max-w-[450px] relative animate-[scaleIn_0.2s_ease] border-4"
-                        style={{ borderColor: getSlotColor(selectedSlot.courseCode, allCodes) }}
+                        className="relative z-[510] flex shrink-0 flex-col animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[12px] border-[1.5px] px-5 pt-5 pb-4"
+                        style={{
+                            width: '335px',
+                            height: '312px',
+                            maxWidth: '92vw',
+                            backgroundColor: selectedSlotCategory === 'theory' ? '#CFF3D5' : '#E8D7FF',
+                            borderColor: selectedSlotCategory === 'theory' ? '#6AA874' : '#8B6FB8',
+                        }}
                         onClick={e => e.stopPropagation()}
                     >
                         <button
-                            onClick={() => setSelectedSlot(null)}
-                            className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors text-black"
+                            onClick={clearSelectedSlot}
+                            className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full text-black/80 transition-colors hover:bg-black/5 hover:text-black"
                         >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3"><path d="M18 6L6 18M6 6l12 12" /></svg>
                         </button>
 
-                        <div className="mb-8 pr-8">
-                            <span className="px-4 py-1.5 rounded-full text-[11px] font-black bg-gray-100 text-gray-500 uppercase tracking-widest mb-4 inline-block">Course Details</span>
-                            <h2 className="text-[28px] font-black text-black leading-tight mt-1">{selectedSlot.courseCode}</h2>
-                            <p className="text-[16px] font-bold text-gray-600 mt-2 leading-snug">{selectedSlot.courseName}</p>
+                        <div className="pr-8">
+                            <h2 className="text-center text-[22px] font-black leading-[1.1] text-black">
+                                {selectedSlot.courseCode} - {selectedSlot.courseName}
+                            </h2>
+                            <p className="mt-2 text-center text-[18px] font-black text-black">
+                                Slot: {selectedSlot.slot}
+                            </p>
                         </div>
 
-                        <div className="space-y-6">
-                            <div className="flex gap-4 items-center">
-                                <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-[20px] flex-shrink-0">👨‍🏫</div>
-                                <div>
-                                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Faculty</p>
-                                    <p className="text-[16px] font-bold text-black">{selectedSlot.facultyName}</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-4 items-center">
-                                <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-[20px] flex-shrink-0">🕒</div>
-                                <div>
-                                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Slot</p>
-                                    <p className="text-[16px] font-bold text-black">{selectedSlot.slot}</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-4 items-center">
-                                <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-[20px] flex-shrink-0">📍</div>
-                                <div>
-                                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Classroom</p>
-                                    <p className="text-[16px] font-bold text-black">Main Campus - TBD</p>
-                                </div>
-                            </div>
+                        <div className="mt-4 flex flex-1 flex-col justify-evenly">
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Faculty Name:</span>{' '}
+                                <span className="font-semibold text-black/75">{selectedSlot.facultyName || 'TBD'}</span>
+                            </p>
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Course Name:</span>{' '}
+                                <span className="font-semibold text-black/75">{selectedSlot.courseName || 'TBD'}</span>
+                            </p>
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Course Code:</span>{' '}
+                                <span className="font-semibold text-black/75">{selectedSlot.courseCode || 'TBD'}</span>
+                            </p>
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Timing:</span>{' '}
+                                <span className="font-semibold text-black/75">{selectedSlot.slot || 'TBD'}</span>
+                            </p>
+                            <p className="text-[16px] leading-[1.35] text-black">
+                                <span className="font-black">Classroom:</span>{' '}
+                                <span className="font-semibold text-black/75">TBD</span>
+                            </p>
                         </div>
                     </div>
                 </div>

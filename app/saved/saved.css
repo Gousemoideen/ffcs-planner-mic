@@ -1334,6 +1334,18 @@
   margin: 0 auto;
 }
 
+.dv-cell-course {
+  font-size: 6.8px;
+  color: #374151;
+  opacity: 0.9;
+  max-width: 58px;
+  margin: 1px auto 0;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .dv-cell-empty {
   font-size: 10px;
   color: #9CA3AF;
