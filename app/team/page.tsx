@@ -442,10 +442,13 @@ export default function TeamPage() {
               Built with ❤️ by Microsoft Innovations Club
             </div>
 
-            <div className="f-block f-updates">
-              <input type="text" placeholder="Get updates" />
-              <button>
-                <Image src="/Vector.png" alt="bell" width={16} height={16} />
+            <div className="f-block f-updates" style={{ padding: '8px' }}>
+              <button
+                onClick={() => router.push('/feedback')}
+                className="w-full flex items-center justify-center gap-2 bg-[#a7f3d0] hover:bg-[#8ee1bc] transition-colors rounded-[8px] cursor-pointer"
+                style={{ height: '40px', border: 'none', fontWeight: 700, fontSize: '15px', color: '#000' }}
+              >
+                Give feedback
               </button>
             </div>
           </div>
