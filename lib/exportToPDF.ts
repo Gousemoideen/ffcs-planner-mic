@@ -164,7 +164,7 @@ export const exportToPDF = async (
         }
         for (const fix of styleFixups) {
             for (const [property, value] of Object.entries(fix.styles)) {
-                fix.el.style[property as keyof CSSStyleDeclaration] = value ?? '';
+                (fix.el.style as any)[property] = value ?? '';
             }
         }
     }
