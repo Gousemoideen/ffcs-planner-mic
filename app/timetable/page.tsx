@@ -91,7 +91,7 @@ function TimetableTable({
 }) {
     return (
         <table className={`w-full table-fixed border-collapse bg-white text-center min-w-full ${exportMode ? '' : 'h-full'}`}>
-            <thead className={exportMode ? '' : 'h-[48px]'}>
+            <thead className={exportMode ? '' : 'h-[48px] sticky top-0 z-20 shadow-sm'}>
                 <tr className={`border-b-[2px] border-white ${exportMode ? 'h-[74px]' : 'h-[30px]'}`}>
                     <th className={`text-center font-bold text-black border-r-[2px] border-white bg-white ${exportMode ? 'w-[150px] p-3 text-[20px] leading-tight' : 'w-[5vw] p-0.5 text-[9px] leading-tight'}`}>Theory Hours</th>
                     {[...leftTimes, { theory: '', lab: '' }, ...rightTimes].map((t, i) => (
@@ -216,6 +216,7 @@ export default function TimetablePage() {
     const [selectedSlotCategory, setSelectedSlotCategory] = useState<SlotCategory | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [toast, setToast] = useState('');
+    const [toastType, setToastType] = useState<'success' | 'error'>('success');
     const [clashMessage, setClashMessage] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [showSaveModal, setShowSaveModal] = useState(false);
@@ -268,8 +269,9 @@ export default function TimetablePage() {
     }, [currentTT]);
     const exportCreditsLabel = 'TBD';
 
-    const showToast = useCallback((msg: string) => {
+    const showToast = useCallback((msg: string, type: 'success' | 'error' = 'success') => {
         setToast(msg);
+        setToastType(type);
         setTimeout(() => setToast(''), 3000);
     }, []);
 
@@ -376,9 +378,13 @@ export default function TimetablePage() {
                     return res.data.timetable;
                 }
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Save error:', error);
-            showToast('Failed to save timetable.');
+            if (error?.response?.status === 409) {
+                showToast(error.response.data.error || 'A timetable with this title already exists.', 'error');
+            } else {
+                showToast('Failed to save timetable.', 'error');
+            }
         } finally {
             setIsSaving(false);
         }
@@ -568,7 +574,7 @@ export default function TimetablePage() {
         <div className="h-screen bg-[#F5E6D3] font-sans overflow-hidden">
             {/* Toast */}
             {toast && (
-                <div className="fixed top-8 right-8 z-[100] bg-[#1a1a2e] text-white px-8 py-4 rounded-2xl shadow-2xl text-[14px] font-bold animate-[slideIn_0.3s_ease] border border-white/10">
+                <div className={`fixed top-8 right-8 z-[100] text-white px-8 py-4 rounded-2xl shadow-2xl text-[14px] font-bold animate-[slideIn_0.3s_ease] border border-white/10 ${toastType === 'error' ? 'bg-red-500' : 'bg-[#1a1a2e]'}`}>
                     {toast}
                 </div>
             )}
@@ -583,8 +589,8 @@ export default function TimetablePage() {
                 {/* Main Table Container */}
                 <div className="bg-white rounded-[18px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-white flex-1 min-h-0 overflow-hidden flex flex-col p-3" id="timetable-grid">
                     
-                    <div id="rat" className="flex-1 min-h-0 overflow-hidden rounded-[14px] border border-[#f1f1f1]">
-                    <div className="h-full overflow-hidden">
+                    <div id="rat" className="flex-1 min-h-0 overflow-auto scrollbar-thin rounded-[14px] border border-[#f1f1f1]">
+                    <div className="min-h-full">
                     <TimetableTable
                         scheduleRows={scheduleRows}
                         leftTimes={leftTimes}
