@@ -14,6 +14,7 @@ import { getSlotViewPayload } from '@/lib/slot-view';
 import { fullCourseData, timetableDisplayData } from '@/lib/type';
 import { clearPlannerClientCache } from '@/lib/clientCache';
 import { getShortCourseName } from '@/lib/courseDisplay';
+import { getPlannerStoredValue } from '@/lib/plannerStorage';
 
 const setCookie = (name: string, value: string) => {
     if (typeof document === 'undefined') return;
@@ -93,21 +94,21 @@ function TimetableTable({
 }) {
     return (
         <table className={`w-full table-fixed border-collapse bg-white text-center min-w-full ${exportMode ? '' : 'h-full'}`}>
-            <thead className={exportMode ? '' : 'h-[48px]'}>
-                <tr className={`border-b-[2px] border-white ${exportMode ? 'h-[74px]' : 'h-[30px]'}`}>
-                    <th className={`text-center font-bold text-black border-r-[2px] border-white bg-white ${exportMode ? 'w-[150px] p-3 text-[20px] leading-tight' : 'w-[5vw] p-0.5 text-[9px] leading-tight'}`}>Theory Hours</th>
+            <thead className={exportMode ? '' : 'h-12'}>
+                <tr className={`border-b-2 border-white ${exportMode ? 'h-18.5' : 'h-7.5'}`}>
+                    <th className={`text-center font-bold text-black border-r-2 border-white bg-white ${exportMode ? 'w-37.5 p-3 text-[20px] leading-tight' : 'w-[5vw] p-0.5 text-[9px] leading-tight'}`}>Theory Hours</th>
                     {[...leftTimes, { theory: '', lab: '' }, ...rightTimes].map((t, i) => (
-                        <th key={i} className={`text-center font-bold text-black border-r-[2px] border-white bg-white ${i === 6 ? (exportMode ? 'w-[42px] px-0' : 'w-[24px] px-0') : (exportMode ? 'min-w-[132px] p-2 text-[16px] leading-tight' : 'min-w-[50px] p-0.5 text-[10px] leading-tight')}`}>
+                        <th key={i} className={`text-center font-bold text-black border-r-2 border-white bg-white ${i === 6 ? (exportMode ? 'w-10.5 px-0' : 'w-6 px-0') : (exportMode ? 'min-w-33 p-2 text-[16px] leading-tight' : 'min-w-12.5 p-0.5 text-[10px] leading-tight')}`}>
                             {t.theory ? t.theory.split('-').map((part, idx, arr) => (
                                 <span key={idx} className="block whitespace-nowrap">{part}{idx < arr.length - 1 ? '-' : ''}</span>
                             )) : null}
                         </th>
                     ))}
                 </tr>
-                <tr className={`border-b-[2px] border-white ${exportMode ? 'h-[74px]' : 'h-[30px]'}`}>
-                    <th className={`text-center font-bold text-black border-r-[2px] border-white bg-white ${exportMode ? 'w-[150px] p-3 text-[20px] leading-tight' : 'w-[5vw] p-0.5 text-[9px] leading-tight'}`}>Lab Hours</th>
+                <tr className={`border-b-2 border-white ${exportMode ? 'h-18.5' : 'h-7.5'}`}>
+                    <th className={`text-center font-bold text-black border-r-2 border-white bg-white ${exportMode ? 'w-37.5 p-3 text-[20px] leading-tight' : 'w-[5vw] p-0.5 text-[9px] leading-tight'}`}>Lab Hours</th>
                     {[...leftTimes, { theory: '', lab: '' }, ...rightTimes].map((t, i) => (
-                        <th key={i} className={`text-center font-bold text-black border-r-[2px] border-white bg-white ${i === 6 ? (exportMode ? 'w-[42px] px-0' : 'w-[24px] px-0') : (exportMode ? 'min-w-[132px] p-2 text-[16px] leading-tight' : 'min-w-[50px] p-0.5 text-[10px] leading-tight')}`}>
+                        <th key={i} className={`text-center font-bold text-black border-r-2 border-white bg-white ${i === 6 ? (exportMode ? 'w-10.5 px-0' : 'w-6 px-0') : (exportMode ? 'min-w-33 p-2 text-[16px] leading-tight' : 'min-w-12.5 p-0.5 text-[10px] leading-tight')}`}>
                             {t.lab ? t.lab.split('-').map((part, idx, arr) => (
                                 <span key={idx} className="block whitespace-nowrap">{part}{idx < arr.length - 1 ? '-' : ''}</span>
                             )) : null}
@@ -118,12 +119,12 @@ function TimetableTable({
             <tbody className="bg-white">
                 {scheduleRows.map((row, rowIdx) => (
                     <tr key={row.day} className={exportMode ? '' : 'group h-[20%]'}>
-                        <td className={`text-black text-center align-middle border-r-[2px] border-white bg-white font-bold ${exportMode ? 'w-[150px] p-0 text-[20px]' : 'w-[5vw] p-0 text-[9px]'}`}>{row.day}</td>
+                        <td className={`text-black text-center align-middle border-r-2 border-white bg-white font-bold ${exportMode ? 'w-37.5 p-0 text-[20px]' : 'w-[5vw] p-0 text-[9px]'}`}>{row.day}</td>
                         {Array.from({ length: 13 }).map((_, colIdx) => {
                             if (colIdx === 6) {
                                 const lunchLetters = ['L', 'U', 'N', 'C', 'H'];
                                 return (
-                                    <td key="lunch-spacer" className={`border-r-[2px] border-white align-middle bg-[#f8f9fa] ${exportMode ? 'w-[42px]' : 'w-[24px]'}`}>
+                                    <td key="lunch-spacer" className={`border-r-2 border-white align-middle bg-[#f8f9fa] ${exportMode ? 'w-10.5' : 'w-6'}`}>
                                         <div className="flex h-full flex-col items-center justify-center">
                                             <span className={`font-black text-black opacity-80 ${exportMode ? 'text-[18px]' : 'text-[9px]'}`}>
                                                 {lunchLetters[rowIdx]}
@@ -149,22 +150,22 @@ function TimetableTable({
                             }
 
                             return (
-                                <td key={colIdx} className="align-top border-r-[2px] border-white p-0 bg-white">
-                                    <div className={`grid w-full grid-rows-2 gap-0 ${exportMode ? 'min-h-[164px]' : 'h-full min-h-[68px]'}`}>
+                                <td key={colIdx} className="align-top border-r-2 border-white p-0 bg-white">
+                                    <div className={`grid w-full grid-rows-2 gap-0 ${exportMode ? 'min-h-41' : 'h-full min-h-17'}`}>
                                         <div
                                             data-slot-label={theoryLabel}
                                             data-slot-category="theory"
                                             data-bgcolor={theoryBackgroundColor}
-                                            className={`relative flex flex-col items-center justify-center transition-all cursor-pointer ${theoryCell ? 'z-10' : ''} ${isSameSlot(selectedSlot, theoryCell) ? 'brightness-110' : ''} ${exportMode ? 'min-h-[82px] px-2.5 py-1.5' : 'h-full py-0'}`}
+                                            className={`relative flex flex-col items-center justify-center transition-all cursor-pointer ${theoryCell ? 'z-10' : ''} ${isSameSlot(selectedSlot, theoryCell) ? 'brightness-110' : ''} ${exportMode ? 'min-h-20.5 px-2.5 py-1.5' : 'h-full py-0'}`}
                                             style={{ backgroundColor: theoryBackgroundColor }}
                                             onClick={() => theoryCell && openSelectedSlot(theoryCell, 'theory')}
                                         >
                                             {theoryCell ? (
                                                 <>
                                                     <span className={`font-bold text-black leading-tight ${exportMode ? 'text-[15px]' : 'text-[10px]'}`}>{theoryLabel}</span>
-                                                    <span className={`font-bold text-black opacity-80 uppercase leading-tight ${exportMode ? 'mt-1 px-1 text-[13px]' : 'px-1 text-[8px] max-w-[62px] truncate'}`}>{theoryCell.courseCode}</span>
+                                                    <span className={`font-bold text-black opacity-80 uppercase leading-tight ${exportMode ? 'mt-1 px-1 text-[13px]' : 'px-1 text-[8px] max-w-15.5 truncate'}`}>{theoryCell.courseCode}</span>
                                                     {exportMode && (
-                                                        <span className="mt-1 px-2 text-center text-[11px] font-semibold leading-tight text-black/85 break-words line-clamp-2">
+                                                        <span className="mt-1 px-2 text-center text-[11px] font-semibold leading-tight text-black/85 wrap-break-word line-clamp-2">
                                                             {getShortCourseName(theoryCell.courseName)}
                                                         </span>
                                                     )}
@@ -178,16 +179,16 @@ function TimetableTable({
                                             data-slot-label={labLabel}
                                             data-slot-category="lab"
                                             data-bgcolor={labBackgroundColor}
-                                            className={`relative flex flex-col items-center justify-center transition-all cursor-pointer ${labCell ? 'z-10' : ''} ${isSameSlot(selectedSlot, labCell) ? 'brightness-110' : ''} ${exportMode ? 'min-h-[82px] px-2.5 py-1.5' : 'h-full py-0'}`}
+                                            className={`relative flex flex-col items-center justify-center transition-all cursor-pointer ${labCell ? 'z-10' : ''} ${isSameSlot(selectedSlot, labCell) ? 'brightness-110' : ''} ${exportMode ? 'min-h-20.5 px-2.5 py-1.5' : 'h-full py-0'}`}
                                             style={{ backgroundColor: labBackgroundColor }}
                                             onClick={() => labCell && openSelectedSlot(labCell, 'lab')}
                                         >
                                             {labCell ? (
                                                 <>
                                                     <span className={`font-bold text-black leading-tight ${exportMode ? 'text-[15px]' : 'text-[10px]'}`}>{labLabel}</span>
-                                                    <span className={`font-bold text-black opacity-80 uppercase leading-tight ${exportMode ? 'mt-1 px-1 text-[13px]' : 'px-1 text-[8px] max-w-[62px] truncate'}`}>{labCell.courseCode}</span>
+                                                    <span className={`font-bold text-black opacity-80 uppercase leading-tight ${exportMode ? 'mt-1 px-1 text-[13px]' : 'px-1 text-[8px] max-w-15.5 truncate'}`}>{labCell.courseCode}</span>
                                                     {exportMode && (
-                                                        <span className="mt-1 px-2 text-center text-[11px] font-semibold leading-tight text-black/85 break-words line-clamp-2">
+                                                        <span className="mt-1 px-2 text-center text-[11px] font-semibold leading-tight text-black/85 wrap-break-word line-clamp-2">
                                                             {getShortCourseName(labCell.courseName)}
                                                         </span>
                                                     )}
@@ -225,7 +226,6 @@ export default function TimetablePage() {
     const [showLogin, setShowLogin] = useState(false);
     const [timetableTitle, setTimetableTitle] = useState('My Schedule');
     const [saveError, setSaveError] = useState('');
-    const [suggestedTitle, setSuggestedTitle] = useState('');
     const { scheduleRows, leftTimes, rightTimes } = useMemo(() => getSlotViewPayload(), []);
 
     const hasInitialized = useRef(false);
@@ -238,7 +238,7 @@ export default function TimetablePage() {
 
 
         if (!timetableData || timetableData.length === 0) {
-            const savedCoursesRaw = getCookie('generatedTimetableCourses') || getCookie('preferenceCourses');
+            const savedCoursesRaw = getPlannerStoredValue('generatedTimetableCourses') || getPlannerStoredValue('preferenceCourses');
             if (savedCoursesRaw) {
                 try {
                     setIsGenerating(true);
@@ -291,44 +291,6 @@ export default function TimetablePage() {
         return fallback;
     }, []);
 
-    const buildSuggestedTitle = useCallback((baseTitle: string, existingTitles: string[]) => {
-        const trimmedBase = baseTitle.trim() || 'My Schedule';
-        const titleSet = new Set(existingTitles.map((title) => title.trim().toLowerCase()));
-
-        if (!titleSet.has(trimmedBase.toLowerCase())) {
-            return trimmedBase;
-        }
-
-        let index = 2;
-        let candidate = `${trimmedBase} ${index}`;
-        while (titleSet.has(candidate.toLowerCase())) {
-            index += 1;
-            candidate = `${trimmedBase} ${index}`;
-        }
-
-        return candidate;
-    }, []);
-
-    const suggestAvailableTitle = useCallback(async (baseTitle: string) => {
-        if (!session?.user?.email) {
-            return '';
-        }
-
-        try {
-            const { data } = await axios.get(`/api/timetables?owner=${encodeURIComponent(session.user.email)}`);
-            const existingTitles = Array.isArray(data)
-                ? data.map((item: { title?: string }) => item.title).filter((title): title is string => Boolean(title))
-                : [];
-            const nextTitle = buildSuggestedTitle(baseTitle, existingTitles);
-            setSuggestedTitle(nextTitle);
-            setTimetableTitle(nextTitle);
-            return nextTitle;
-        } catch (suggestionError) {
-            console.error('Failed to build suggested title:', suggestionError);
-            return '';
-        }
-    }, [buildSuggestedTitle, session?.user?.email]);
-
     const clearSelectedSlot = useCallback(() => {
         setSelectedSlot(null);
         setHighlightedCells([]);
@@ -363,7 +325,7 @@ export default function TimetablePage() {
         setSelectedSlotCategory(category);
     }, []);
 
-    const handleSave = async (customTitle?: string, options?: { skipRedirect?: boolean }) => {
+    const handleSave = async (customTitle?: string, options?: { skipRedirect?: boolean; makePublic?: boolean }) => {
         if (!session?.user?.email) {
             setShowLogin(true);
             showToast('Please sign in to save or share your timetable.');
@@ -372,7 +334,6 @@ export default function TimetablePage() {
         if (isSaving || currentTT.length === 0) return null;
 
         setSaveError('');
-        setSuggestedTitle('');
         setIsSaving(true);
         try {
             const editingTimetableId = getCookie('editingTimetableId');
@@ -390,6 +351,7 @@ export default function TimetablePage() {
                 const res = await axios.patch(`/api/timetables/${editingTimetableId}`, {
                     title,
                     slots: slotsData,
+                    ...(options?.makePublic ? { isPublic: true } : {}),
                 });
 
                 if (res.data.success) {
@@ -411,7 +373,7 @@ export default function TimetablePage() {
                     title,
                     slots: slotsData,
                     owner: session.user.email,
-                    isPublic: false,
+                    isPublic: options?.makePublic ?? false,
                 });
 
                 if (res.data.success) {
@@ -428,7 +390,7 @@ export default function TimetablePage() {
                         setShowSaveModal(false);
                         showToast('Timetable saved successfully!');
                         setTimeout(() => {
-                            clearPlannerClientCache({ includeEditingState: true });
+                            clearPlannerClientCache({ includeEditingState: true, clearPlannerState: false });
                             router.refresh();
                             router.push('/saved');
                         }, 1200);
@@ -439,18 +401,8 @@ export default function TimetablePage() {
         } catch (error) {
             console.error('Save error:', error);
             const message = getRequestErrorMessage(error, 'Failed to save timetable.');
-            if (message === 'A timetable with this title already exists') {
-                const attemptedTitle = customTitle?.trim() || timetableTitle.trim() || 'My Schedule';
-                const nextTitle = await suggestAvailableTitle(attemptedTitle);
-                const conflictMessage = nextTitle && nextTitle !== attemptedTitle
-                    ? `That title already exists. Suggested title: "${nextTitle}".`
-                    : message;
-                setSaveError(conflictMessage);
-                showToast(conflictMessage);
-            } else {
-                setSaveError(message);
-                showToast(message);
-            }
+            setSaveError(message);
+            showToast(message);
         } finally {
             setIsSaving(false);
         }
@@ -544,7 +496,7 @@ export default function TimetablePage() {
                 shareId = timetableRes.data.shareId;
             } else {
                 console.log('Saving new private timetable...');
-                const saved = await handleSave(timetableTitle, { skipRedirect: true });
+                const saved = await handleSave(timetableTitle, { skipRedirect: true, makePublic: true });
                 console.log('Save result:', saved);
                 if (saved?.shareId) {
                     shareId = saved.shareId;
@@ -638,14 +590,14 @@ export default function TimetablePage() {
         <div className="h-screen bg-[#F5E6D3] font-sans overflow-hidden">
             {/* Toast */}
             {toast && (
-                <div className="fixed top-8 right-8 z-[100] bg-[#1a1a2e] text-white px-8 py-4 rounded-2xl shadow-2xl text-[14px] font-bold animate-[slideIn_0.3s_ease] border border-white/10">
+                <div className="fixed top-8 right-8 z-100 bg-[#1a1a2e] text-white px-8 py-4 rounded-2xl shadow-2xl text-[14px] font-bold animate-[slideIn_0.3s_ease] border border-white/10">
                     {toast}
                 </div>
             )}
 
-            <div className="h-full px-[clamp(12px,1.5vw,24px)] pt-[clamp(10px,1vh,18px)] pb-[116px]">
-            <div className="w-full max-w-[1800px] h-full mx-auto flex flex-col min-h-0">
-                <div className="flex items-center gap-4 px-2 pt-[18px] pb-2 shrink-0">
+            <div className="h-full px-[clamp(12px,1.5vw,24px)] pt-[clamp(10px,1vh,18px)] pb-29">
+            <div className="w-full max-w-450 h-full mx-auto flex flex-col min-h-0">
+                <div className="flex items-center gap-4 px-2 pt-4.5 pb-2 shrink-0">
                     <h1 className="text-[24px] font-bold text-black">Timetables Generated</h1>
 
                 </div>
@@ -742,21 +694,21 @@ export default function TimetablePage() {
             <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#F5E6D3] py-6 px-[clamp(16px,2vw,32px)] w-full flex justify-center">
                 <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 w-full max-w-7xl">
                     {/* LEFT - USER BOX */}
-                    <div className="bg-white rounded-[12px] p-3 shadow-sm flex items-center gap-3 w-full sm:w-auto overflow-hidden">
+                    <div className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 w-full sm:w-auto overflow-hidden">
                         {session?.user?.image ? (
-                            <img src={session.user.image} alt="User avatar" className="w-[36px] h-[36px] rounded-lg border border-gray-100 flex-shrink-0" referrerPolicy="no-referrer" />
+                            <img src={session.user.image} alt="User avatar" className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
                         ) : (
-                            <div className="w-[36px] h-[36px] bg-gray-300 rounded-lg flex items-center justify-center font-bold text-white text-sm flex-shrink-0">
+                            <div className="w-9 h-9 bg-gray-300 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0">
                                 {session?.user?.name?.[0] || "?"}
                             </div>
                         )}
-                        <span className="text-gray-800 text-sm font-bold truncate max-w-[200px] pr-2">
+                        <span className="text-gray-800 text-sm font-bold truncate max-w-50 pr-2">
                             {session?.user?.name || "Guest"}
                         </span>
                     </div>
 
                     {/* CENTER - STEPS BOX */}
-                    <div className="bg-white rounded-[12px] p-2 shadow-sm flex flex-wrap justify-center items-center gap-2 w-full sm:w-auto order-last md:order-none mt-2 md:mt-0">
+                    <div className="bg-white rounded-xl p-2 shadow-sm flex flex-wrap justify-center items-center gap-2 w-full sm:w-auto order-last md:order-0 mt-2 md:mt-0">
                         {[1, 2, 3, 4].map((num) => (
                             <button
                                 key={num}
@@ -773,10 +725,10 @@ export default function TimetablePage() {
                                         router.push('/saved');
                                     }
                                 }}
-                                className={`h-[38px] flex items-center justify-center rounded-[6px] font-bold text-sm cursor-pointer transition-colors border-none ${
+                                className={`h-9.5 flex items-center justify-center rounded-md font-bold text-sm cursor-pointer transition-colors border-none ${
                                     num === 3
-                                        ? 'bg-[#A0C4FF] text-black px-4 min-w-[38px]'
-                                        : 'bg-[#A0C4FF]/40 text-black min-w-[38px]'
+                                        ? 'bg-[#A0C4FF] text-black px-4 min-w-9.5'
+                                        : 'bg-[#A0C4FF]/40 text-black min-w-9.5'
                                 }`}
                             >
                                 {num === 3 ? '3. Timetable' : num}
@@ -785,7 +737,7 @@ export default function TimetablePage() {
                     </div>
 
                     {/* RIGHT - ACTION BOX */}
-                    <div className="flex gap-3 justify-end flex-shrink-0 ml-auto mr-auto sm:mr-0 mt-2 sm:mt-0">
+                    <div className="flex gap-3 justify-end shrink-0 ml-auto mr-auto sm:mr-0 mt-2 sm:mt-0">
                         <button
                             onClick={() => router.push('/courses')}
                             className="px-8 py-3 bg-[#f1eacb] hover:bg-[#E8DDB8] border-2 border-[#A0C4FF] rounded-[10px] font-bold text-sm text-black transition-all duration-200 cursor-pointer"
@@ -809,16 +761,16 @@ export default function TimetablePage() {
                 </div>
             </div>
 
-            <div className="pointer-events-none fixed left-[-10000px] top-[-10000px]" aria-hidden="true">
-                <div id="rat-export" className="w-[2400px] bg-[#F8E8D2] p-12 font-sans">
-                    <div className="rounded-[32px] border border-[#efe7d6] bg-[#FFFBF0] p-8 shadow-[0_12px_40px_rgba(0,0,0,0.04)]">
+            <div className="pointer-events-none fixed -left-2500 -top-2500" aria-hidden="true">
+                <div id="rat-export" className="w-600 bg-[#F8E8D2] p-12 font-sans">
+                    <div className="rounded-4xl border border-[#efe7d6] bg-[#FFFBF0] p-8 shadow-[0_12px_40px_rgba(0,0,0,0.04)]">
                         <div className="mb-8 flex items-center gap-5 px-1">
                             <h1 className="text-[42px] font-bold text-black">{timetableTitle || 'My Schedule'}</h1>
                             <div className="rounded-2xl border-2 border-green-400 bg-green-100 px-5 py-3 text-[22px] font-semibold text-green-800">
                                 PDF Export
                             </div>
                         </div>
-                        <div className="overflow-hidden rounded-[24px] border border-[#ece6d8] bg-white p-6">
+                        <div className="overflow-hidden rounded-3xl border border-[#ece6d8] bg-white p-6">
                             <TimetableTable
                                 scheduleRows={scheduleRows}
                                 leftTimes={leftTimes}
@@ -832,7 +784,7 @@ export default function TimetablePage() {
                         </div>
                     </div>
                 </div>
-                <div id="selected-courses-export" className="w-[1200px] bg-[#F8E8D2] p-12 font-sans">
+                <div id="selected-courses-export" className="w-300 bg-[#F8E8D2] p-12 font-sans">
                     <div className="rounded-[36px] border border-[#d9d9d9] bg-white px-10 pt-8 pb-10 shadow-[0_12px_40px_rgba(0,0,0,0.04)]">
                         <h2 className="mb-20 text-center text-[30px] leading-[1.2] font-black text-black">{timetableTitle || 'Selected Courses'}</h2>
                         <div className="overflow-hidden border-y border-[#2c2c2c] bg-white">
@@ -872,11 +824,11 @@ export default function TimetablePage() {
 
             {/* Popover */}
             {selectedSlot && (
-                <div className="slot-detail-backdrop fixed inset-0 z-[500] flex items-center justify-center px-4" onClick={clearSelectedSlot}>
+                <div className="slot-detail-backdrop fixed inset-0 z-500 flex items-center justify-center px-4" onClick={clearSelectedSlot}>
                     {highlightedCells.map((highlightedCell) => (
                         <div
                             key={`${highlightedCell.label}-${highlightedCell.rect.top}-${highlightedCell.rect.left}`}
-                            className="pointer-events-none fixed z-[505] flex flex-col items-center justify-center shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
+                            className="pointer-events-none fixed z-505 flex flex-col items-center justify-center shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
                             style={{
                                 top: highlightedCell.rect.top,
                                 left: highlightedCell.rect.left,
@@ -886,13 +838,13 @@ export default function TimetablePage() {
                             }}
                         >
                             <span className="text-[10px] font-bold leading-tight text-black">{highlightedCell.label}</span>
-                            <span className="max-w-[62px] truncate px-1 text-[8px] font-bold uppercase leading-tight text-black opacity-80">
+                            <span className="max-w-15.5 truncate px-1 text-[8px] font-bold uppercase leading-tight text-black opacity-80">
                                 {highlightedCell.courseCode}
                             </span>
                         </div>
                     ))}
                     <div
-                        className="relative z-[510] flex shrink-0 flex-col animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[12px] border-[1.5px] px-5 pt-5 pb-4"
+                        className="relative z-510 flex shrink-0 flex-col animate-[scaleIn_0.2s_ease] overflow-hidden rounded-xl border-[1.5px] px-5 pt-5 pb-4"
                         style={{
                             width: '335px',
                             height: '312px',
@@ -946,20 +898,20 @@ export default function TimetablePage() {
             )}
 
             {showDownloadModal && (
-                <div className="fixed inset-0 z-[520] flex items-center justify-center bg-black/35 backdrop-blur-[4px]" onClick={() => setShowDownloadModal(false)}>
-                    <div className="w-[92%] max-w-[420px] rounded-[24px] bg-white p-7 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="fixed inset-0 z-520 flex items-center justify-center bg-black/35 backdrop-blur-xs" onClick={() => setShowDownloadModal(false)}>
+                    <div className="w-[92%] max-w-105 rounded-3xl bg-white p-7 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                         <h2 className="text-[24px] font-black text-black">Download PDF</h2>
                         <p className="mt-2 text-[15px] font-medium text-gray-600">Choose what you want to download.</p>
                         <div className="mt-6 flex flex-col gap-3">
                             <button
                                 onClick={() => handleDownload('timetable')}
-                                className="rounded-[16px] bg-[#C8F7DC] px-5 py-4 text-left text-[16px] font-bold text-black transition-colors hover:bg-[#b0eac8]"
+                                className="rounded-2xl bg-[#C8F7DC] px-5 py-4 text-left text-[16px] font-bold text-black transition-colors hover:bg-[#b0eac8]"
                             >
                                 Timetable
                             </button>
                             <button
                                 onClick={() => handleDownload('slots')}
-                                className="rounded-[16px] bg-[#A0C4FF] px-5 py-4 text-left text-[16px] font-bold text-black transition-colors hover:bg-[#8fb6f2]"
+                                className="rounded-2xl bg-[#A0C4FF] px-5 py-4 text-left text-[16px] font-bold text-black transition-colors hover:bg-[#8fb6f2]"
                             >
                                 Selected Courses
                             </button>
@@ -976,13 +928,12 @@ export default function TimetablePage() {
 
             {/* Save Modal */}
             {showSaveModal && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => {
+                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => {
                     setSaveError('');
-                    setSuggestedTitle('');
                     setShowSaveModal(false);
                 }}>
                     <div
-                        className="bg-white rounded-[24px] shadow-2xl p-8 w-[90%] max-w-[400px] relative animate-[scaleIn_0.2s_ease]"
+                        className="bg-white rounded-3xl shadow-2xl p-8 w-[90%] max-w-100 relative animate-[scaleIn_0.2s_ease]"
                         onClick={e => e.stopPropagation()}
                     >
                         <h2 className="text-[24px] font-black text-black mb-4">Save Timetable</h2>
@@ -994,9 +945,6 @@ export default function TimetablePage() {
                                 if (saveError) {
                                     setSaveError('');
                                 }
-                                if (suggestedTitle) {
-                                    setSuggestedTitle('');
-                                }
                             }}
                             className="w-full p-4 border-2 border-gray-100 rounded-xl mb-6 text-black font-semibold text-[16px] focus:border-[#A0C4FF] focus:ring-2 focus:ring-[#A0C4FF]/20 outline-none transition-all placeholder:font-medium"
                             placeholder="Enter a title..."
@@ -1007,14 +955,13 @@ export default function TimetablePage() {
                                 {saveError}
                             </p>
                         )}
-                        <div className="!mt-4 margin flex items-center justify-end gap-5">
+                        <div className="mt-4! margin flex items-center justify-end gap-5">
                             <button
                                 onClick={() => {
                                     setSaveError('');
-                                    setSuggestedTitle('');
                                     setShowSaveModal(false);
                                 }}
-                                className="min-w-[132px] px-6 py-3 text-center text-[16px] font-bold text-[#667085] transition-colors hover:text-[#475467]"
+                                className="min-w-33 px-6 py-3 text-center text-[16px] font-bold text-[#667085] transition-colors hover:text-[#475467]"
                             >
                                 Cancel
                             </button>
@@ -1023,7 +970,7 @@ export default function TimetablePage() {
                                     handleSave(timetableTitle);
                                 }}
                                 disabled={isSaving || !timetableTitle.trim()}
-                                className="min-w-[120px] rounded-[22px] bg-[#9dbcf2] px-8 py-3 text-center text-[18px] font-black text-black shadow-[0_8px_18px_rgba(157,188,242,0.35)] transition-all hover:bg-[#8eb1ef] disabled:opacity-50"
+                                className="min-w-30 rounded-[22px] bg-[#9dbcf2] px-8 py-3 text-center text-[18px] font-black text-black shadow-[0_8px_18px_rgba(157,188,242,0.35)] transition-all hover:bg-[#8eb1ef] disabled:opacity-50"
                             >
                                 Save
                             </button>
