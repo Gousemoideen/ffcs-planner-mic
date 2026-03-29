@@ -355,14 +355,22 @@ export default function TimetablePage() {
                 });
 
                 if (res.data.success) {
+                    const resolvedTitle = res.data?.timetable?.title;
+                    if (typeof resolvedTitle === 'string' && resolvedTitle.trim().length > 0) {
+                        setTimetableTitle(resolvedTitle);
+                    }
                     posthog.capture('timetable_saved', {
                         mode: 'update',
                         slots_count: slotsData.length,
-                        title_length: title.length,
+                        title_length: (resolvedTitle || title).length,
                     });
                     if (!options?.skipRedirect) {
                         setShowSaveModal(false);
-                        showToast('Timetable updated successfully!');
+                        if (resolvedTitle && resolvedTitle !== title) {
+                            showToast(`Timetable updated as "${resolvedTitle}"`);
+                        } else {
+                            showToast('Timetable updated successfully!');
+                        }
                         setTimeout(() => { router.refresh(); router.push('/saved'); }, 1200);
                     }
                     return { _id: editingTimetableId, shareId: null };
@@ -377,10 +385,14 @@ export default function TimetablePage() {
                 });
 
                 if (res.data.success) {
+                    const resolvedTitle = res.data?.timetable?.title;
+                    if (typeof resolvedTitle === 'string' && resolvedTitle.trim().length > 0) {
+                        setTimetableTitle(resolvedTitle);
+                    }
                     posthog.capture('timetable_saved', {
                         mode: 'create',
                         slots_count: slotsData.length,
-                        title_length: title.length,
+                        title_length: (resolvedTitle || title).length,
                     });
                     // Update editing cookie so subsequent shares bind to the new save!
                     setCookie('editingTimetableId', res.data.timetable._id);
@@ -388,7 +400,11 @@ export default function TimetablePage() {
 
                     if (!options?.skipRedirect) {
                         setShowSaveModal(false);
-                        showToast('Timetable saved successfully!');
+                        if (resolvedTitle && resolvedTitle !== title) {
+                            showToast(`Timetable saved as "${resolvedTitle}"`);
+                        } else {
+                            showToast('Timetable saved successfully!');
+                        }
                         setTimeout(() => {
                             clearPlannerClientCache({ includeEditingState: true, clearPlannerState: false });
                             router.refresh();
