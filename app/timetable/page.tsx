@@ -116,7 +116,7 @@ function TimetableTable({
                     ))}
                 </tr>
             </thead>
-            <tbody className="bg-white">
+            <tbody className={exportMode ? 'bg-white' : 'bg-white h-full'}>
                 {scheduleRows.map((row, rowIdx) => (
                     <tr key={row.day} className={exportMode ? '' : 'group h-[20%]'}>
                         <td className={`text-black text-center align-middle border-r-2 border-white bg-white font-bold ${exportMode ? 'w-37.5 p-0 text-[20px]' : 'w-[5vw] p-0 text-[9px]'}`}>{row.day}</td>
@@ -605,7 +605,7 @@ export default function TimetablePage() {
     }
 
     return (
-        <div className="h-screen bg-[#F5E6D3] font-sans overflow-hidden">
+        <div className="h-screen bg-[#F5E6D3] overflow-hidden">
             {/* Toast */}
             {toast && (
                 <div className={`fixed top-8 right-8 z-100 text-white px-8 py-4 rounded-2xl shadow-2xl text-[14px] font-bold animate-[slideIn_0.3s_ease] border border-white/10 ${toastType === 'error' ? 'bg-red-500' : 'bg-[#1a1a2e]'}`}>
@@ -623,7 +623,7 @@ export default function TimetablePage() {
                     <div className="bg-white rounded-[18px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-white flex-1 min-h-0 overflow-hidden flex flex-col p-3" id="timetable-grid">
 
                         <div id="rat" className="flex-1 min-h-0 overflow-auto scrollbar-thin rounded-[14px] border border-[#f1f1f1]">
-                            <div className="min-h-full">
+                            <div className="h-full">
                                 <TimetableTable
                                     scheduleRows={scheduleRows}
                                     leftTimes={leftTimes}
@@ -708,20 +708,49 @@ export default function TimetablePage() {
             </div>
 
             {/* Bottom Navigation */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#F5E6D3] py-6 px-[clamp(16px,2vw,32px)] w-full flex justify-center">
-                <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 w-full max-w-7xl">
-                    {/* LEFT - USER BOX */}
-                    <div className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 w-full sm:w-auto overflow-hidden">
-                        {session?.user?.image ? (
-                            <img src={session.user.image} alt="User avatar" className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
-                        ) : (
-                            <div className="w-9 h-9 bg-gray-300 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0">
-                                {session?.user?.name?.[0] || "?"}
-                            </div>
-                        )}
-                        <span className="text-gray-800 text-sm font-bold truncate max-w-50 pr-2">
-                            {session?.user?.name || "Guest"}
-                        </span>
+            <div
+                className="fixed bottom-0 left-0 right-0 z-40 bg-[#F5E6D3] py-6 px-[clamp(16px,2vw,32px)] w-full flex justify-center"
+                style={{ fontFamily: 'Inter, Arial, Helvetica, sans-serif' }}
+            >
+                <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 w-full">
+                    <div className="flex items-center justify-start gap-3 w-full sm:w-auto shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => router.push('/')}
+                            aria-label="Go to home page"
+                            title="Home"
+                            className="bg-white rounded-xl p-3 shadow-sm flex items-center justify-center min-w-14.5 min-h-14.5 hover:bg-gray-50 transition-colors shrink-0"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="w-6 h-6 text-gray-800"
+                                aria-hidden="true"
+                            >
+                                <path d="M3 10.5L12 3l9 7.5" />
+                                <path d="M5 9.5V21h14V9.5" />
+                                <path d="M9 21v-6h6v6" />
+                            </svg>
+                        </button>
+
+                        {/* LEFT - USER BOX */}
+                        <div className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 w-full sm:w-auto overflow-hidden">
+                            {session?.user?.image ? (
+                                <img src={session.user.image} alt="User avatar" className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
+                            ) : (
+                                <div className="w-9 h-9 bg-gray-300 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0">
+                                    {session?.user?.name?.[0] || "?"}
+                                </div>
+                            )}
+                            <span className="text-gray-800 text-sm font-bold truncate max-w-50 pr-2">
+                                {session?.user?.name || "Guest"}
+                            </span>
+                        </div>
                     </div>
 
                     {/* CENTER - STEPS BOX */}
