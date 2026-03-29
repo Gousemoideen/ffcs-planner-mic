@@ -388,39 +388,89 @@ export default function SavedPage() {
                         </div>
                     </div>
 
-                    {/* Bottom nav bar */}
-                    <div className="bottom-nav">
-                        <div className="bottom-nav-box user-section">
-                            <div className="avatar">
-                                {session?.user?.image
-                                    ? <Image src={session.user.image} alt="avatar" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} unoptimized referrerPolicy="no-referrer" />
-                                    : (session?.user?.name?.[0] || '?')}
-                            </div>
-                            <span className="user-name">{session?.user?.name || 'Guest'}</span>
-                        </div>
-
-                        <div className="bottom-nav-box step-pills-container">
-                            <div className="step-pills">
-                                {[1, 2, 3, 4].map(n => (
-                                    <button
-                                        key={n}
-                                        onClick={() => {
-                                            if (n === 1) router.push('/preferences');
-                                            if (n === 2) router.push('/courses');
-                                            if (n === 3) router.push('/timetable');
-                                            if (n === 4) router.push('/saved');
-                                        }}
-                                        className={n === 4 ? 'step-pill-saved' : 'step-pill'}
+                    {/* Bottom Navigation */}
+                    <div
+                        className="fixed bottom-0 left-0 right-0 z-40 bg-[#F6F2DD] py-6 px-[clamp(16px,2vw,32px)] w-full flex justify-center"
+                        style={{ fontFamily: 'Inter, Arial, Helvetica, sans-serif' }}
+                    >
+                        <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 w-full">
+                            <div className="flex items-center justify-start gap-3 w-full sm:w-auto shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => router.push('/')}
+                                    aria-label="Go to home page"
+                                    title="Home"
+                                    className="bg-white rounded-xl p-3 shadow-sm flex items-center justify-center min-w-14.5 min-h-14.5 hover:bg-gray-50 transition-colors shrink-0"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        className="w-6 h-6 text-gray-800"
+                                        aria-hidden="true"
                                     >
-                                        {n === 4 ? '4. Saved' : n}
+                                        <path d="M3 10.5L12 3l9 7.5" />
+                                        <path d="M5 9.5V21h14V9.5" />
+                                        <path d="M9 21v-6h6v6" />
+                                    </svg>
+                                </button>
+
+                                {/* LEFT - USER BOX */}
+                                <div className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 w-full sm:w-auto overflow-hidden">
+                                    {session?.user?.image ? (
+                                        <img src={session.user.image} alt="User avatar" className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
+                                    ) : (
+                                        <div className="w-9 h-9 bg-gray-300 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0">
+                                            {session?.user?.name?.[0] || '?'}
+                                        </div>
+                                    )}
+                                    <span className="text-gray-800 text-sm font-bold truncate max-w-50 pr-2">
+                                        {session?.user?.name || 'Guest'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* CENTER - STEPS BOX */}
+                            <div className="bg-white rounded-xl p-2 shadow-sm flex flex-wrap justify-center items-center gap-2 w-full sm:w-auto order-last md:order-0 mt-2 md:mt-0">
+                                {[1, 2, 3, 4].map((num) => (
+                                    <button
+                                        key={num}
+                                        onClick={() => {
+                                            if (num === 1) router.push('/preferences');
+                                            if (num === 2) router.push('/courses');
+                                            if (num === 3) router.push('/timetable');
+                                            if (num === 4) router.push('/saved');
+                                        }}
+                                        className={`h-9.5 flex items-center justify-center rounded-md font-bold text-sm cursor-pointer transition-colors border-none ${
+                                            num === 4
+                                                ? 'bg-[#A0C4FF] text-black px-4 min-w-9.5'
+                                                : 'bg-[#A0C4FF]/40 text-black min-w-9.5'
+                                        }`}
+                                    >
+                                        {num === 4 ? '4. Saved' : num}
                                     </button>
                                 ))}
                             </div>
-                        </div>
 
-                        <div className="nav-btns">
-                            <button onClick={handlePrevious} className="btn-prev">Previous</button>
-                            <button disabled className="btn-next">Next</button>
+                            {/* RIGHT - ACTION BOX */}
+                            <div className="flex gap-3 justify-end shrink-0 ml-auto mr-auto sm:mr-0 mt-2 sm:mt-0">
+                                <button
+                                    onClick={handlePrevious}
+                                    className="px-8 py-3 bg-[#f1eacb] hover:bg-[#E8DDB8] border-2 border-[#A0C4FF] rounded-[10px] font-bold text-sm text-black transition-all duration-200"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    disabled
+                                    className="px-10 py-3 bg-[#A0C4FF] rounded-[10px] font-bold text-sm text-black transition-all duration-200 cursor-not-allowed opacity-40"
+                                >
+                                    Next
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </>
