@@ -13,6 +13,21 @@ To enable feature flags with Flagsmith, set `NEXT_PUBLIC_FLAGSMITH_ENVIRONMENT_I
 For rollout rules, naming, and cleanup steps, see [FEATURE_FLAGS_GUIDE.md](FEATURE_FLAGS_GUIDE.md).
 For agent-facing repository guidance, see [agents.md](agents.md).
 
+## Helpful Docs
+
+- [FEATURE_FLAGS_GUIDE.md](FEATURE_FLAGS_GUIDE.md) - rollout rules and flag lifecycle
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - common setup and runtime fixes
+- [CONTRIBUTING.md](CONTRIBUTING.md) - workflow, checks, and PR guidance
+
+## Feature Flag Checklist
+
+When adding a new flag:
+
+1. Add the flag name to [lib/featureFlags.ts](lib/featureFlags.ts).
+2. Create the matching flag in Flagsmith.
+3. Test it on your own account first.
+4. Expand gradually and remove the flag after full rollout.
+
 First, run the development server:
 
 ```bash
