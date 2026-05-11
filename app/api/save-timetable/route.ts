@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized - no session' }, { status: 401 });
         }
 
-        const rateLimit = enforceRateLimit(req, {
+        const rateLimit = await enforceRateLimit(req, {
             key: 'save-timetable',
             windowMs: 60_000,
             maxRequests: 30,

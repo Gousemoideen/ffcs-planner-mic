@@ -35,7 +35,7 @@ const ALLOWED_SCHOOLS = new Set([
  * otherwise returns the first `limit` courses.
  */
 export async function GET(req: NextRequest) {
-    const rateLimit = enforceRateLimit(req, {
+    const rateLimit = await enforceRateLimit(req, {
         key: 'courses-search',
         windowMs: 60_000,
         maxRequests: 60,

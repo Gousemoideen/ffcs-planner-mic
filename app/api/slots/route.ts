@@ -3,7 +3,7 @@ import { getSlotViewPayload } from '@/lib/slot-view';
 import { enforceRateLimit } from '@/lib/rateLimit';
 
 export async function GET(req: NextRequest) {
-    const rateLimit = enforceRateLimit(req, {
+    const rateLimit = await enforceRateLimit(req, {
         key: 'slot-view',
         windowMs: 60_000,
         maxRequests: 60,

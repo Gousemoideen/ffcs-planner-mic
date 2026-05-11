@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const rateLimit = enforceRateLimit(req, {
+        const rateLimit = await enforceRateLimit(req, {
             key: 'timetables-list',
             windowMs: 60_000,
             maxRequests: 60,

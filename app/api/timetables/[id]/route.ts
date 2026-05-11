@@ -27,7 +27,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const rateLimit = enforceRateLimit(req, {
+        const rateLimit = await enforceRateLimit(req, {
             key: 'timetable-delete',
             windowMs: 60_000,
             maxRequests: 30,
@@ -72,7 +72,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const rateLimit = enforceRateLimit(req, {
+        const rateLimit = await enforceRateLimit(req, {
             key: 'timetable-patch',
             windowMs: 60_000,
             maxRequests: 60,
@@ -178,7 +178,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const rateLimit = enforceRateLimit(req, {
+        const rateLimit = await enforceRateLimit(req, {
             key: 'timetable-get',
             windowMs: 60_000,
             maxRequests: 120,

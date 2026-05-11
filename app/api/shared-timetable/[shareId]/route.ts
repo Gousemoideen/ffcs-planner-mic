@@ -7,7 +7,7 @@ import { enforceRateLimit } from '@/lib/rateLimit';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-    const rateLimit = enforceRateLimit(req, {
+    const rateLimit = await enforceRateLimit(req, {
         key: 'shared-timetable',
         windowMs: 60_000,
         maxRequests: 30,
