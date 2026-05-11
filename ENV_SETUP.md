@@ -7,6 +7,7 @@ This guide explains how to set up the required environment variables for the FFC
 The FFCS Planner uses several services that require secret keys and credentials:
 
 - **MongoDB**: Database for storing user data and timetables
+- **Redis**: Shared rate limiting store for API protection
 - **NextAuth**: Authentication and session management
 - **OAuth Providers**: GitHub and Google login (optional)
 - **Email Service**: For sending notifications (optional)
@@ -68,7 +69,22 @@ NEXTAUTH_SECRET=your_generated_secret
 NEXTAUTH_URL=http://localhost:3000
 ```
 
-### 4. Configure OAuth (Optional)
+### 4. Configure Redis for Rate Limiting
+
+This project uses Upstash Redis for shared rate limiting in API routes.
+
+1. Create a Redis database in [Upstash](https://upstash.com/)
+2. Copy the REST URL and REST token from the Upstash console
+3. Add them to `.env.local`
+
+```env
+UPSTASH_REDIS_REST_URL=your_upstash_redis_rest_url
+UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_rest_token
+```
+
+If these variables are not set, the app falls back to the local in-memory limiter for development.
+
+### 5. Configure OAuth (Optional)
 
 #### GitHub OAuth
 1. Go to GitHub Settings → Developer settings → OAuth Apps
@@ -96,7 +112,7 @@ GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
-### 5. Configure Email (Optional)
+### 6. Configure Email (Optional)
 
 For Gmail:
 1. Enable 2-Factor Authentication on your Google account
@@ -111,7 +127,7 @@ SMTP_PASSWORD=your_app_password
 EMAIL_FROM=noreply@ffcsplanner.com
 ```
 
-### 6. Verify Your Setup
+### 7. Verify Your Setup
 
 Run the development server:
 ```bash

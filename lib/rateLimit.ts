@@ -1,5 +1,7 @@
 'use server';
 
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
 import { NextRequest, NextResponse } from 'next/server';
 
 type RateLimitConfig = {
@@ -15,11 +17,53 @@ type RateLimitEntry = {
 };
 
 declare global {
+    // eslint-disable-next-line no-var
     var __ffcsRateLimitStore: Map<string, RateLimitEntry> | undefined;
+    // eslint-disable-next-line no-var
+    var __ffcsRedisClient: Redis | undefined;
+    // eslint-disable-next-line no-var
+    var __ffcsRedisRateLimiters: Map<string, Ratelimit> | undefined;
 }
 
 const store = global.__ffcsRateLimitStore ?? new Map<string, RateLimitEntry>();
 global.__ffcsRateLimitStore = store;
+
+const hasRedisConfig = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+
+const getRedisClient = () => {
+    if (!hasRedisConfig) return null;
+
+    if (!global.__ffcsRedisClient) {
+        global.__ffcsRedisClient = Redis.fromEnv();
+    }
+
+    return global.__ffcsRedisClient;
+};
+
+const getRedisRateLimiter = (config: RateLimitConfig) => {
+    if (!hasRedisConfig) return null;
+
+    if (!global.__ffcsRedisRateLimiters) {
+        global.__ffcsRedisRateLimiters = new Map<string, Ratelimit>();
+    }
+
+    const bucket = `${config.key}:${config.windowMs}:${config.maxRequests}`;
+    const existing = global.__ffcsRedisRateLimiters.get(bucket);
+    if (existing) return existing;
+
+    const redis = getRedisClient();
+    if (!redis) return null;
+
+    const limiter = new Ratelimit({
+        redis,
+        limiter: Ratelimit.fixedWindow(config.maxRequests, `${config.windowMs} ms`),
+        analytics: true,
+        prefix: 'ffcs-rate-limit',
+    });
+
+    global.__ffcsRedisRateLimiters.set(bucket, limiter);
+    return limiter;
+};
 
 const getClientIdentifier = (req: NextRequest, overrideIdentifier?: string) => {
     if (overrideIdentifier) {
@@ -57,10 +101,41 @@ const createRateLimitHeaders = (remaining: number, resetAt: number) => ({
     'X-RateLimit-Reset': String(Math.ceil(resetAt / 1000)),
 });
 
-export const enforceRateLimit = (req: NextRequest, config: RateLimitConfig) => {
+export const enforceRateLimit = async (req: NextRequest, config: RateLimitConfig) => {
     const now = Date.now();
     const clientId = getClientIdentifier(req, config.identifier);
     const bucketKey = `${config.key}:${clientId}`;
+
+    const redisLimiter = getRedisRateLimiter(config);
+    if (redisLimiter) {
+        try {
+            const { success, limit, remaining, reset } = await redisLimiter.limit(bucketKey);
+
+            if (!success) {
+                return {
+                    limited: true as const,
+                    response: NextResponse.json(
+                        { error: 'Too many requests. Please try again shortly.' },
+                        {
+                            status: 429,
+                            headers: {
+                                ...createRateLimitHeaders(0, reset),
+                                'Retry-After': String(Math.max(1, Math.ceil((reset - now) / 1000))),
+                            },
+                        }
+                    ),
+                };
+            }
+
+            return {
+                limited: false as const,
+                headers: createRateLimitHeaders(remaining ?? limit - 1, reset),
+            };
+        } catch (error) {
+            console.warn('[rateLimit] Redis limiter failed, falling back to in-memory store:', error);
+        }
+    }
+
     const current = store.get(bucketKey);
 
     if (!current || current.resetAt <= now) {
