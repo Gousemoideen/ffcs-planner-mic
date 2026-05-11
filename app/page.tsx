@@ -1,11 +1,12 @@
 "use client";
 import React, { useState } from "react";
 import Image from "next/image";
-import "./landing.css"; // Ensure standard normal CSS is imported
 import LoginModal from "../components/loginPopup"
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { clearPlannerClientCache } from "@/lib/clientCache";
+import { useFlags, useFlagsmithLoading } from '@flagsmith/flagsmith/react';
+import { FEATURE_FLAGS } from '@/lib/featureFlags';
 
 type FloatingTile = {
   id: number;
@@ -47,6 +48,10 @@ export default function LandingPage() {
   const floatingContainerRef = React.useRef<HTMLDivElement | null>(null);
   const router = useRouter();
   const { data: session } = useSession();
+  const flagsmithLoading = useFlagsmithLoading();
+  const betaFlags = useFlags([FEATURE_FLAGS.betaTimetableFlow]);
+  const betaTimetableFlag = betaFlags[FEATURE_FLAGS.betaTimetableFlow];
+  const showBetaTimetableBanner = !flagsmithLoading?.isLoading && Boolean(betaTimetableFlag?.enabled);
 
   const handleLogout = React.useCallback(() => {
     clearPlannerClientCache({ includeEditingState: true });
@@ -258,6 +263,11 @@ export default function LandingPage() {
     <div className="landing-page">
       {/* Top Banner and Hero */}
       <div className="white-container">
+        {showBetaTimetableBanner && (
+          <div className="mx-auto mt-5 w-fit rounded-full border border-[#c7d2fe] bg-[#eef2ff] px-4 py-2 text-sm font-semibold text-[#3730a3] shadow-sm">
+            Flagsmith beta: the timetable flow rollout is enabled for your account.
+          </div>
+        )}
         <nav className="navbar">
           <div className="logo">FFCS</div>
           {session ? (
@@ -311,7 +321,7 @@ export default function LandingPage() {
               course selection and slot management tools
             </p>
             <div className="hero-buttons">
-              <button className="btn-primary" onClick={() => setOpen(true)}>Get Started</button>
+              <button className="btn-primary" onClick={() => setOpen(true)}>{showBetaTimetableBanner ? 'Try Beta Timetable' : 'Get Started'}</button>
               {open && (
                 <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
                   <div className="flex items-center justify-center w-full max-w-237.25 bg-[#FFFCEE] rounded-[20px] shadow-xl p-6 mx-4 relative">

@@ -1,7 +1,6 @@
 "use client";
 import React, { useState } from "react";
 import Image from "next/image";
-import "../landing.css"; // Ensure standard normal CSS is imported
 import LoginModal from "../../components/loginPopup"
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -460,7 +459,7 @@ export default function TeamPage() {
             <div className="f-block f-updates" style={{ padding: '8px' }}>
               <button
                 onClick={() => router.push('/feedback')}
-                className="w-full flex items-center justify-center gap-2 bg-[#BFDBFE] hover:bg-[#93C5FD] transition-colors rounded-[8px] cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 bg-[#BFDBFE] hover:bg-[#93C5FD] transition-colors rounded-lg cursor-pointer"
                 style={{ height: '40px', width: '100%', border: 'none', fontWeight: 700, fontSize: '15px', color: '#000' }}
               >
                 Give feedback
