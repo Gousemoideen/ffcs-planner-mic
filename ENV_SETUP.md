@@ -16,7 +16,6 @@ The FFCS Planner uses several services that require secret keys and credentials:
 ## Files
 
 - `.env.example` - Template showing all available environment variables
-- `secret.env` - Template for secret/sensitive environment variables
 - `.env.local` - Your local configuration (create this from the templates above)
 
 ## Setup Instructions
