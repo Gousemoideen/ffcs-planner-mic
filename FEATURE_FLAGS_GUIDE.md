@@ -2,6 +2,8 @@
 
 This project uses Flagsmith to roll out UI changes safely and gradually.
 
+For agent and repository-level instructions, see [agents.md](agents.md).
+
 ## What Feature Flags Are For
 
 Use a flag when you want to:

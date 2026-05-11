@@ -10,6 +10,9 @@ cp .env.example .env.local
 
 To enable feature flags with Flagsmith, set `NEXT_PUBLIC_FLAGSMITH_ENVIRONMENT_ID` in `.env.local`.
 
+For rollout rules, naming, and cleanup steps, see [FEATURE_FLAGS_GUIDE.md](FEATURE_FLAGS_GUIDE.md).
+For agent-facing repository guidance, see [agents.md](agents.md).
+
 First, run the development server:
 
 ```bash
