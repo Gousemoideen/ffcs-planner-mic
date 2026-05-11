@@ -8,6 +8,7 @@ The FFCS Planner uses several services that require secret keys and credentials:
 
 - **MongoDB**: Database for storing user data and timetables
 - **Redis**: Shared rate limiting store for API protection
+- **Flagsmith**: Feature flags for safe rollouts and experiments
 - **NextAuth**: Authentication and session management
 - **OAuth Providers**: GitHub and Google login (optional)
 - **Email Service**: For sending notifications (optional)
@@ -84,7 +85,22 @@ UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_rest_token
 
 If these variables are not set, the app falls back to the local in-memory limiter for development.
 
-### 5. Configure OAuth (Optional)
+### 5. Configure Flagsmith Feature Flags
+
+This project uses Flagsmith to gate experimental UI changes safely.
+
+1. Create a Flagsmith project/environment
+2. Copy the environment ID from the Flagsmith dashboard
+3. Add it to `.env.local`
+
+```env
+NEXT_PUBLIC_FLAGSMITH_ENVIRONMENT_ID=your_flagsmith_environment_id
+NEXT_PUBLIC_FLAGSMITH_API_URL=https://edge.api.flagsmith.com/api/v1
+```
+
+If you use the hosted Flagsmith API, you can usually omit `NEXT_PUBLIC_FLAGSMITH_API_URL` and rely on the default.
+
+### 6. Configure OAuth (Optional)
 
 #### GitHub OAuth
 1. Go to GitHub Settings → Developer settings → OAuth Apps
@@ -112,7 +128,7 @@ GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
-### 6. Configure Email (Optional)
+### 7. Configure Email (Optional)
 
 For Gmail:
 1. Enable 2-Factor Authentication on your Google account
@@ -127,7 +143,7 @@ SMTP_PASSWORD=your_app_password
 EMAIL_FROM=noreply@ffcsplanner.com
 ```
 
-### 7. Verify Your Setup
+### 8. Verify Your Setup
 
 Run the development server:
 ```bash

@@ -2,6 +2,14 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Create your local environment file first:
+
+```bash
+cp .env.example .env.local
+```
+
+To enable feature flags with Flagsmith, set `NEXT_PUBLIC_FLAGSMITH_ENVIRONMENT_ID` in `.env.local`.
+
 First, run the development server:
 
 ```bash
