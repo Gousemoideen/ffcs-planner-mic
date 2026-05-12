@@ -263,7 +263,9 @@ export default function TeamPage() {
       {/* Top Banner and Hero */}
       <div className="white-container">
         <nav className="navbar">
-          <div className="logo cursor-pointer" onClick={() => router.push('/')}>FFCS</div>
+          <div className="logo cursor-pointer" style={{ display: 'flex', alignItems: 'center' }} onClick={() => router.push('/')}>
+            <Image src="/mic-logo.png" alt="MIC Logo" width={80} height={40} className="object-contain" priority />
+          </div>
           {session ? (
             <div className="relative">
               <div
