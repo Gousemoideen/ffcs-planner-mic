@@ -271,7 +271,7 @@ export default function TeamPage() {
                 onClick={() => setShowUserMenu(!showUserMenu)}
               >
                 {session.user?.image && (
-                  <img src={session.user.image} alt="avatar" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+                  <Image src={session.user.image} alt="avatar" width={32} height={32} className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
                 )}
                 <span className="font-semibold text-black">{session.user?.name}</span>
                 <svg

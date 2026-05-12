@@ -7,6 +7,7 @@ import axios from 'axios';
 import type { AxiosError } from 'axios';
 import posthog from 'posthog-js';
 import LoginModal from '@/components/loginPopup';
+import Image from 'next/image';
 import { useTimetable } from '@/lib/TimeTableContext';
 import { exportToPDF } from '@/lib/exportToPDF';
 import { generateTT } from '@/lib/utils';
@@ -32,10 +33,6 @@ const getCookie = (name: string): string | null => {
         }
     }
     return null;
-};
-
-const deleteCookie = (name: string) => {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
 };
 
 const THEORY_FILLED_COLOR = '#BFF0C8';
@@ -741,7 +738,7 @@ export default function TimetablePage() {
                         {/* LEFT - USER BOX */}
                         <div className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 w-full sm:w-auto overflow-hidden">
                             {session?.user?.image ? (
-                                <img src={session.user.image} alt="User avatar" className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
+                                <Image src={session.user.image} alt="User avatar" width={36} height={36} className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
                             ) : (
                                 <div className="w-9 h-9 bg-gray-300 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0">
                                     {session?.user?.name?.[0] || "?"}

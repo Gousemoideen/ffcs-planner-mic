@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import TimetableIllustration from "./TImeTableIllustration";
 import LoginModal from "../loginPopup";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 export default function Section1() {
@@ -14,8 +14,12 @@ export default function Section1() {
 
   useEffect(() => {
     if (session && showLogin) {
-      setShowLogin(false);
-      setOpen(true);
+      const timer = window.setTimeout(() => {
+        setShowLogin(false);
+        setOpen(true);
+      }, 0);
+
+      return () => window.clearTimeout(timer);
     }
   }, [session, showLogin]);
 

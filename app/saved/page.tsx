@@ -6,13 +6,13 @@ import type { Session } from 'next-auth';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import posthog from 'posthog-js';
-import { getCourseType } from '@/lib/course_codes_map';
 import { fullCourseData } from '@/lib/type';
 import { useTimetable } from '@/lib/TimeTableContext';
 import { exportToPDF } from '@/lib/exportToPDF';
 import Image from 'next/image';
 import './saved.css';
 import { setPlannerStoredValue } from '@/lib/plannerStorage';
+import { getChennaiCourseType } from '@/lib/chennaiCatalog';
 
 
 /* ── Slot → timetable grid mapping ── */
@@ -91,10 +91,6 @@ const setCookie = (name: string, value: string, days = 30) => {
     document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/`;
 };
 
-const deleteCookie = (name: string) => {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
-};
-
 /* ── Convert Timetable to Course Preferences ── */
 function convertTimetableToCoursePreferences(tt: TimetableEntry): fullCourseData[] {
     // Group slots by courseCode, courseName
@@ -131,7 +127,7 @@ function convertTimetableToCoursePreferences(tt: TimetableEntry): fullCourseData
 
         result.push({
             id: `${course.courseCode} - ${course.courseName}_${Array.from(course.slots.keys()).join('_')}`,
-            courseType: getCourseType(course.courseCode),
+            courseType: getChennaiCourseType(course.courseCode),
             courseCode: course.courseCode,
             courseName: course.courseName,
             courseSlots,
@@ -422,7 +418,7 @@ export default function SavedPage() {
                                 {/* LEFT - USER BOX */}
                                 <div className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 w-full sm:w-auto overflow-hidden">
                                     {session?.user?.image ? (
-                                        <img src={session.user.image} alt="User avatar" className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
+                                        <Image src={session.user.image} alt="User avatar" width={36} height={36} className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
                                     ) : (
                                         <div className="w-9 h-9 bg-gray-300 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0">
                                             {session?.user?.name?.[0] || '?'}
@@ -939,7 +935,7 @@ function TimetableDetailView({
                 <div className="bottom-nav-box user-section">
                     <div className="avatar">
                         {session?.user?.image
-                            ? <img src={session.user.image} alt="avatar" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} referrerPolicy="no-referrer" />
+                            ? <Image src={session.user.image} alt="avatar" width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} referrerPolicy="no-referrer" />
                             : (session?.user?.name?.[0] || '?')}
                     </div>
                     <span className="user-name">{session?.user?.name || 'Guest'}</span>

@@ -34,7 +34,7 @@ export default function FeedbackPage() {
             } else {
                 setMessage("Failed to submit feedback. Please try again.");
             }
-        } catch (error) {
+        } catch {
             setMessage("An error occurred. Please try again.");
         } finally {
             setIsSubmitting(false);

@@ -2,13 +2,14 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import { fullCourseData } from '@/lib/type';
-import { getCourseType } from '@/lib/course_codes_map';
 import { clashMap } from '@/lib/slots';
 import { generateTT } from '@/lib/utils';
 import { useTimetable } from '@/lib/TimeTableContext';
 import { getPlannerStoredValue, setPlannerStoredValue } from '@/lib/plannerStorage';
+import { getChennaiCourseType } from '@/lib/chennaiCatalog';
 
 type FacultyEntry = {
     uid: string;
@@ -17,13 +18,6 @@ type FacultyEntry = {
     courseName: string;
     slot: string;
     facultyName: string;
-};
-
-type CourseGroup = {
-    courseCode: string;
-    courseName: string;
-    slot: string;
-    faculties: string[];
 };
 
 const setCookie = (name: string, value: string, days = 30) => {
@@ -105,7 +99,7 @@ const buildPreferenceCoursesFromRows = (rows: FacultyEntry[]): fullCourseData[] 
         result.push({
             // Using a simpler ID or one that encompasses all slots securely
             id: `${course.courseCode}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-            courseType: getCourseType(course.courseCode),
+            courseType: getChennaiCourseType(course.courseCode),
             courseCode: course.courseCode,
             courseName: course.courseName,
             courseSlots,
@@ -582,7 +576,7 @@ export default function CoursesPage() {
                         {/* LEFT - USER BOX */}
                         <div className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 w-full sm:w-auto overflow-hidden">
                             {session?.user?.image ? (
-                                <img src={session.user.image} alt="User avatar" className="w-9.5 h-9.5 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
+                                <Image src={session.user.image} alt="User avatar" width={38} height={38} className="w-9.5 h-9.5 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
                             ) : (
                                 <div className="w-9 h-9 bg-gray-300 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0">
                                     {session?.user?.name?.[0] || "?"}
