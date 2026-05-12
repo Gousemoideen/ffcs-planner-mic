@@ -49,8 +49,8 @@ export async function GET(req: NextRequest) {
             .sort({ createdAt: -1 })
             .lean();
         return NextResponse.json(timetables, { headers: { ...NO_STORE_HEADERS, ...rateLimit.headers } });
-    } catch (err: any) {
-        console.error('[timetables/list] Error:', err?.message || err);
+    } catch (err: unknown) {
+        console.error('[timetables/list] Error:', err instanceof Error ? err.message : err);
         return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 });
     }
 }

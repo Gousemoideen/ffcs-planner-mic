@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import Course from '@/models/course';
 import { enforceRateLimit } from '@/lib/rateLimit';
+import chennaiCourses from '@/src/data/all_data_chennai';
 
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_SCHOOLS = new Set([
+    'CHENNAI',
     'SCHEME',
     'SCHEME_F',
     'SCOPE',
@@ -26,6 +28,61 @@ const ALLOWED_SCHOOLS = new Set([
     'MTECH_SCOPE',
     'MTECH_SCORE',
 ]);
+
+function buildChennaiCourseCatalog() {
+    const courseMap = new Map<string, {
+        courseId: string;
+        courseName: string;
+        school: string;
+        courseType: 'th' | 'lab' | 'both';
+        offerings: { faculty: string; slot: string; venue: string }[];
+    }>();
+
+    for (const record of chennaiCourses) {
+        const current = courseMap.get(record.CODE) || {
+            courseId: record.CODE,
+            courseName: record.TITLE,
+            school: 'CHENNAI',
+            courseType: 'th' as const,
+            offerings: [],
+        };
+
+        const normalizedType = record.TYPE.trim().toUpperCase();
+        current.courseType = normalizedType === 'LO' ? 'lab' : 'th';
+        current.offerings.push({
+            faculty: record.FACULTY,
+            slot: record.SLOT,
+            venue: '',
+        });
+
+        courseMap.set(record.CODE, current);
+    }
+
+    return Array.from(courseMap.values()).map((course) => {
+        const hasTheory = course.offerings.some((offering) => !offering.slot.startsWith('L'));
+        const hasLab = course.offerings.some((offering) => offering.slot.startsWith('L'));
+
+        return {
+            ...course,
+            courseType: hasTheory && hasLab ? 'both' : hasLab ? 'lab' : 'th',
+        };
+    });
+}
+
+function searchChennaiCourses(q: string, limit: number) {
+    const catalog = buildChennaiCourseCatalog();
+    const query = q.toLowerCase();
+
+    const filtered = catalog.filter((course) => {
+        if (!query) return true;
+        return [course.courseId, course.courseName, course.school, course.courseType, ...course.offerings.flatMap((offering) => [offering.faculty, offering.slot])]
+            .join(' ')
+            .toLowerCase()
+            .includes(query);
+    });
+
+    return filtered.slice(0, limit);
+}
 
 /**
  * GET /api/courses?q=BCSE202&school=SCOPE&limit=20
@@ -56,6 +113,13 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(
             { error: 'Invalid school parameter' },
             { status: 400, headers: rateLimit.headers }
+        );
+    }
+
+    if (normalizedSchool === 'CHENNAI') {
+        return NextResponse.json(
+            { success: true, courses: searchChennaiCourses(q, limit) },
+            { headers: rateLimit.headers }
         );
     }
 
