@@ -16,14 +16,14 @@ const bodyFont = Lato({
   weight: ["300", "400", "700"],
 });
 export const metadata: Metadata = {
-  metadataBase: new URL("https://micvitc.com"),
+  metadataBase: new URL("https://ffcs.microsoftinnovations.club"),
   title: "FFCS Planner - Build Your Timetable | MIC",
   description: "Plan and build your perfect timetable with the FFCS Planner. Generate clash-free schedules, export them, and share them with your friends.",
   keywords: ["FFCS", "VIT", "Timetable Planner", "Course Selection", "VIT Chennai"],
   openGraph: {
     title: "FFCS Planner",
     description: "Build your perfect clash-free timetable easily.",
-    url: "https://micvitc.com",
+    url: "https://ffcs.microsoftinnovations.club",
     siteName: "FFCS Planner by MIC",
     images: [
       {
