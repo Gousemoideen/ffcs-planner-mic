@@ -31,6 +31,8 @@ export function generateTT(
                 for (const slot of course.courseSlots) {
                     for (const faculty of slot.slotFaculties) {
                         if (faculty.facultyLabSlot) {
+                            // Full theory+lab pairing — encode both in the slot name so
+                            // breakClubbed() can split them apart later.
                             const labSlots = faculty.facultyLabSlot.split(', ');
                             for (const labSlot of labSlots) {
                                 subjectOptions.push({
@@ -40,11 +42,25 @@ export function generateTT(
                                     facultyName: faculty.facultyName,
                                 });
                             }
+                        } else {
+                            // No lab slot available (e.g. data from the courses page where
+                            // only a theory slot was entered).  Include it as theory-only so
+                            // the course still appears in the generated timetable.
+                            subjectOptions.push({
+                                courseCode: course.courseCode,
+                                courseName: course.courseName,
+                                slotName: slot.slotName,
+                                facultyName: faculty.facultyName,
+                            });
                         }
                     }
                 }
             }
-            coursesSimple.push(subjectOptions);
+            // Only add if there are valid options — an empty array would zero out
+            // the entire cartesian product and produce no timetables at all.
+            if (subjectOptions.length > 0) {
+                coursesSimple.push(subjectOptions);
+            }
         }
         return coursesSimple;
     }
