@@ -16,8 +16,30 @@ const bodyFont = Lato({
   weight: ["300", "400", "700"],
 });
 export const metadata: Metadata = {
-  title: "FFCS Planner - Build Your Timetable",
-  description: "Plan and build your perfect timetable with FFCS Planner",
+  title: "FFCS Planner - Build Your Timetable | MIC",
+  description: "Plan and build your perfect timetable with the FFCS Planner. Generate clash-free schedules, export them, and share them with your friends.",
+  keywords: ["FFCS", "VIT", "Timetable Planner", "Course Selection", "VIT Chennai"],
+  openGraph: {
+    title: "FFCS Planner",
+    description: "Build your perfect clash-free timetable easily.",
+    url: "https://micvitc.com",
+    siteName: "FFCS Planner by MIC",
+    images: [
+      {
+        url: "/mic-logo.png",
+        width: 800,
+        height: 600,
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FFCS Planner by MIC",
+    description: "Build your perfect clash-free timetable easily.",
+    images: ["/mic-logo.png"],
+  },
 };
 
 export default function RootLayout({
