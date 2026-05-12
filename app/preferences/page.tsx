@@ -6,13 +6,12 @@
  * Flow: Landing → Login → Create New Timetable → **Preferences** → Courses → Timetable → Saved
  *
  * PURPOSE:
- * The user completes a 6-step wizard to set their preferences:
- *   1. Select Department (e.g., SCOPE, SENSE, SELECT, SMEC, SCHEME)
- *   2. Select Domain (course categories like Foundation Core, Discipline Core, etc.)
- *   3. Select Subject (specific courses from the selected domain)
- *   4. Select Slot (available time slots for the course)
- *   5. Select Faculty (professor for the course)
- *   6. Faculty Priority (set priority for faculty selection)
+ * The user completes a 5-step wizard to set their preferences:
+ *   1. Select Domain (e.g., BACSE, BAECE, BAEIE)
+ *   2. Select Subject (specific courses from the selected domain)
+ *   3. Select Slot (available time slots for the course)
+ *   4. Select Faculty (professor for the course)
+ *   5. Faculty Priority (set priority for faculty selection)
  *
  * DATABASE INTERACTIONS:
  * - No direct DB writes on this page
@@ -27,11 +26,16 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import { usePreferences } from '@/lib/PreferencesContext';
-import { getCourseType } from '@/lib/course_codes_map';
 import { fullCourseData } from '@/lib/type';
 import { getPlannerStoredValue, setPlannerStoredValue } from '@/lib/plannerStorage';
+import type { ChennaiDomainCatalog } from '@/lib/chennaiCatalog';
+import {
+    buildPreferenceCoursesFromChennaiSelection,
+    getChennaiDepartmentData,
+} from '@/lib/chennaiCatalog';
 
 // Cookie utility functions
 const setCookie = (name: string, value: string, days = 30) => {
@@ -58,10 +62,9 @@ const getCookie = (name: string): string | null => {
 
 const keepFirst = (arr: string[]): string[] => (arr.length > 0 ? [arr[0]] : []);
 
-const STEP_COLORS = ['#9bc0f6', '#eedaff', '#d1fae5', '#9bc0f6', '#eedaff', '#d1fae5'];
-const STEP_BORDER_COLORS = ['#759fdf', '#bfa1eb', '#9dcbb5', '#759fdf', '#bfa1eb', '#9dcbb5'];
+const STEP_COLORS = ['#9bc0f6', '#eedaff', '#d1fae5', '#9bc0f6', '#eedaff'];
+const STEP_BORDER_COLORS = ['#759fdf', '#bfa1eb', '#9dcbb5', '#759fdf', '#bfa1eb'];
 const STEP_LABELS = [
-    'Select Department',
     'Select Domain',
     'Select Subject',
     'Select Slot',
@@ -76,10 +79,9 @@ const selectionButtonUnselectedClass = 'bg-white/80 hover:bg-white hover:shadow-
 export default function PreferencesPage() {
     const router = useRouter();
     const { data: session } = useSession();
-    const { selectedCourses, addCourse } = usePreferences();
+    const { addCourse } = usePreferences();
 
     const [currentStep, setCurrentStep] = useState(1);
-    const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
     const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
     const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
     const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
@@ -104,48 +106,44 @@ export default function PreferencesPage() {
     };
     // Load preferences from cookies on mount
     useEffect(() => {
-        const savedStep = getCookie('preferenceStep');
-        const savedDepartments = getCookie('preferenceDepartments');
-        const savedDomains = getCookie('preferenceDomains');
-        const savedSubjects = getCookie('preferenceSubjects');
-        const savedSlots = getCookie('preferenceSlots');
-        const savedFaculties = getPlannerStoredValue('preferenceMultipleFaculties');
-        const savedPriority = getCookie('facultyPriority');
+        const timer = window.setTimeout(() => {
+            const savedStep = getCookie('preferenceStep');
+            const savedDomains = getCookie('preferenceDomains');
+            const savedSubjects = getCookie('preferenceSubjects');
+            const savedSlots = getCookie('preferenceSlots');
+            const savedFaculties = getPlannerStoredValue('preferenceMultipleFaculties');
+            const savedPriority = getCookie('facultyPriority');
 
-        if (savedStep) {
-            const parsedStep = Number.parseInt(savedStep, 10);
-            if (!Number.isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 6) {
-                setCurrentStep(parsedStep);
+            if (savedStep) {
+                const parsedStep = Number.parseInt(savedStep, 10);
+                if (!Number.isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
+                    setCurrentStep(parsedStep);
+                }
             }
-        }
-        if (savedDepartments) {
-            const parsed = JSON.parse(savedDepartments);
-            setSelectedDepartments(keepFirst(Array.isArray(parsed) ? parsed : []));
-        }
-        if (savedDomains) {
-            const parsed = JSON.parse(savedDomains);
-            setSelectedDomains(keepFirst(Array.isArray(parsed) ? parsed : []));
-        }
-        if (savedSubjects) {
-            const parsed = JSON.parse(savedSubjects);
-            setSelectedSubjects(keepFirst(Array.isArray(parsed) ? parsed : []));
-        }
-        if (savedSlots) setSelectedSlots(JSON.parse(savedSlots));
-        if (savedFaculties) setSavedFacultyPreferences(JSON.parse(savedFaculties));
-        if (savedPriority) setFacultyPriority(savedPriority as 'slot' | 'faculty');
+            if (savedDomains) {
+                const parsed = JSON.parse(savedDomains);
+                setSelectedDomains(keepFirst(Array.isArray(parsed) ? parsed : []));
+            }
+            if (savedSubjects) {
+                const parsed = JSON.parse(savedSubjects);
+                setSelectedSubjects(keepFirst(Array.isArray(parsed) ? parsed : []));
+            }
+            if (savedSlots) setSelectedSlots(JSON.parse(savedSlots));
+            if (savedFaculties) setSavedFacultyPreferences(JSON.parse(savedFaculties));
+            if (savedPriority) setFacultyPriority(savedPriority as 'slot' | 'faculty');
+        }, 0);
 
-
+        return () => window.clearTimeout(timer);
     }, []);
 
     // Save preferences to cookies whenever they change
     useEffect(() => {
         setCookie('preferenceStep', currentStep.toString());
-        setCookie('preferenceDepartments', JSON.stringify(selectedDepartments));
         setCookie('preferenceDomains', JSON.stringify(selectedDomains));
         setCookie('preferenceSubjects', JSON.stringify(selectedSubjects));
         setCookie('preferenceSlots', JSON.stringify(selectedSlots));
         setCookie('facultyPriority', facultyPriority);
-    }, [currentStep, selectedDepartments, selectedDomains, selectedSubjects, selectedSlots, facultyPriority]);
+    }, [currentStep, selectedDomains, selectedSubjects, selectedSlots, facultyPriority]);
 
     useEffect(() => {
         setPlannerStoredValue('preferenceMultipleFaculties', JSON.stringify(savedFacultyPreferences));
@@ -156,136 +154,69 @@ export default function PreferencesPage() {
         return () => window.clearTimeout(timer);
     }, []);
 
-    const departments = [
-        'SCOPE',
-        'SENSE',
-        'SELECT',
-        'SMEC',
-        'SCHEME',
-        'SCORE',
-        'SBST',
-        'SCE',
-        'SHINE',
-        'SCOPE_F',
-        'SBST_F',
-        'SCORE_F',
-        'SENSE_F',
-        'SELECT_F',
-        'SHINE_F',
-        'SMEC_F',
-        'MTech_SCOPE',
-        'MTech_SCORE',
-    ];
+    // Load Chennai domain data dynamically
+    const domainData = useMemo<ChennaiDomainCatalog>(() => {
+        return getChennaiDepartmentData(selectedDomains);
+    }, [selectedDomains]);
 
-    const deptDisplayName = (dept: string) => dept.endsWith('_F') ? dept.replace('_F', '_Freshers') : dept;
-
-    // Load department data dynamically
-    const departmentData = useMemo(() => {
-        if (selectedDepartments.length === 0) return null;
-        try {
-            const schemeMap: { [key: string]: any } = {
-                SCOPE: require('@/data/SCOPE').SCOPE_LIST,
-                SENSE: require('@/data/SENSE').SENSE_LIST,
-                SELECT: require('@/data/SELECT').SELECT_LIST,
-                SMEC: require('@/data/SMEC').SMEC_LIST,
-                SCHEME: require('@/data/SCHEME').SCHEME_LIST,
-                SCORE: require('@/data/SCORE').SCORE_LIST,
-                SBST: require('@/data/SBST').SBST_LIST,
-                SCE: require('@/data/SCE').SCE_LIST,
-                SHINE: require('@/data/SHINE').SHINE_LIST,
-                SCOPE_F: require('@/data/SCOPE_F').SCOPE_F,
-                SBST_F: require('@/data/SBST_F').SBST_F,
-                SCORE_F: require('@/data/SCORE_F').SCORE_F,
-                SENSE_F: require('@/data/SENSE_F').SENSE_F,
-                SELECT_F: require('@/data/SELECT_F').SELECT_F,
-                SHINE_F: require('@/data/SHINE_F').SHINE_F,
-                SMEC_F: require('@/data/SMEC_F').SMEC_F,
-                MTech_SCOPE: require('@/data/MTech_SCOPE').MTech_SCOPE,
-                MTech_SCORE: require('@/data/MTech_SCORE').MIS_LIST,
-            };
-            let combinedMap: any = {};
-            selectedDepartments.forEach(dept => {
-                const data = schemeMap[dept] || {};
-                Object.keys(data).forEach(domain => {
-                    if (!combinedMap[domain]) combinedMap[domain] = {};
-                    Object.keys(data[domain]).forEach(subject => {
-                        if (!combinedMap[domain][subject]) {
-                            combinedMap[domain][subject] = [];
-                        }
-                        combinedMap[domain][subject].push(...data[domain][subject]);
-                    });
-                });
-            });
-            return combinedMap;
-        } catch (error) {
-            console.error('Error loading department data:', error);
-            return {};
-        }
-    }, [selectedDepartments]);
-
-    // Get available domains (categories)
+    // Get available domains (course prefixes)
     const domains = useMemo(() => {
-        return departmentData ? Object.keys(departmentData) : [];
-    }, [departmentData]);
+        return Object.keys(getChennaiDepartmentData([]));
+    }, []);
 
     // Get subjects in selected domain
     const subjects = useMemo(() => {
-        if (selectedDomains.length === 0 || !departmentData) return [];
-        let allSubjects: string[] = [];
-        selectedDomains.forEach(domain => {
-            if (departmentData[domain]) {
-                allSubjects = [...allSubjects, ...Object.keys(departmentData[domain])];
-            }
-        });
+        if (selectedDomains.length === 0 || !domainData) return [];
+        const allSubjects = selectedDomains.flatMap((domain) => Object.keys(domainData[domain] ?? {}));
         return [...new Set(allSubjects)];
-    }, [selectedDomains, departmentData]);
+    }, [selectedDomains, domainData]);
 
     // Get slots for selected subject
     const slots = useMemo(() => {
-        if (selectedSubjects.length === 0 || selectedDomains.length === 0 || !departmentData) return [];
+        if (selectedSubjects.length === 0 || selectedDomains.length === 0 || !domainData) return [];
         const slotSet = new Set<string>();
         selectedDomains.forEach(domain => {
-            const domainData = departmentData[domain] || {};
+            const subjectMap = domainData[domain] || {};
             selectedSubjects.forEach(subject => {
-                const subjectData = domainData[subject] || [];
-                subjectData.forEach((item: any) => {
-                    if (item.slot) slotSet.add(item.slot);
+                const subjectData = subjectMap[subject] || [];
+                subjectData.forEach((item) => {
+                    if (item.SLOT) slotSet.add(item.SLOT);
                 });
             });
         });
         return Array.from(slotSet);
-    }, [selectedSubjects, selectedDomains, departmentData]);
+    }, [selectedSubjects, selectedDomains, domainData]);
 
     // Get faculties for selected slot
     const faculties = useMemo<string[]>(() => {
-        if (selectedSubjects.length === 0 || selectedDomains.length === 0 || selectedSlots.length === 0 || !departmentData) return [];
+        if (selectedSubjects.length === 0 || selectedDomains.length === 0 || selectedSlots.length === 0 || !domainData) return [];
         const facultySet = new Set<string>();
 
         selectedDomains.forEach(domain => {
-            const domainData = departmentData[domain] || {};
+            const subjectMap = domainData[domain] || {};
             selectedSubjects.forEach(subject => {
-                const subjectData = domainData[subject] || [];
-                subjectData.forEach((item: any) => {
-                    if (selectedSlots.includes(item.slot)) {
-                        if (item.faculty) facultySet.add(item.faculty);
+                const subjectData = subjectMap[subject] || [];
+                subjectData.forEach((item) => {
+                    if (selectedSlots.includes(item.SLOT)) {
+                        if (item.FACULTY) facultySet.add(item.FACULTY);
                     }
                 });
             });
         });
 
         return Array.from(facultySet);
-    }, [selectedSubjects, selectedDomains, selectedSlots, departmentData]);
+    }, [selectedSubjects, selectedDomains, selectedSlots, domainData]);
 
     const handleNext = () => {
-        if (currentStep === 5) {
+        if (currentStep === 4) {
             const persisted = persistCurrentSelection(false);
             if (persisted) {
-                setCurrentStep(6);
+                setCurrentStep(5);
             }
             return;
         }
 
-        if (currentStep < 6) {
+        if (currentStep < 5) {
             setCurrentStep(prev => prev + 1);
         }
     };
@@ -297,7 +228,7 @@ export default function PreferencesPage() {
     };
 
     const handleStepClick = (stepNum: number) => {
-        if (stepNum >= 1 && stepNum <= 6) {
+        if (stepNum >= 1 && stepNum <= 5) {
             setCurrentStep(stepNum);
         }
     };
@@ -307,17 +238,8 @@ export default function PreferencesPage() {
         setSelectedSubjects([]);
         setSelectedSlots([]);
         setSelectedFaculties([]);
-        setCurrentStep(3);
-        setCookie('preferenceStep', '3');
-    };
-
-    const handleDepartmentSelect = (dept: string) => {
-        setSelectionError('');
-        setSelectedDepartments(prev => (prev[0] === dept ? [] : [dept]));
-        setSelectedDomains([]);
-        setSelectedSubjects([]);
-        setSelectedSlots([]);
-        setSelectedFaculties([]);
+        setCurrentStep(2);
+        setCookie('preferenceStep', '2');
     };
 
     const handleDomainSelect = (domain: string) => {
@@ -352,46 +274,12 @@ export default function PreferencesPage() {
     const persistCurrentSelection = (resetWizard = true) => {
         if (selectedSubjects.length > 0 && selectedSlots.length > 0 && selectedFaculties.length > 0) {
             setSelectionError('');
-            let newCourses: fullCourseData[] = [];
-
-            selectedDomains.forEach(domain => {
-                const domainData = departmentData?.[domain] || {};
-                selectedSubjects.forEach(subject => {
-                    const subjectData = domainData[subject] || [];
-
-                    const MathGroups = new Map<string, string[]>(); // slot -> faculty[]
-
-                    subjectData.forEach((item: any) => {
-                        if (selectedSlots.includes(item.slot) && selectedFaculties.includes(item.faculty)) {
-                            if (!MathGroups.has(item.slot)) MathGroups.set(item.slot, []);
-                            if (!MathGroups.get(item.slot)!.includes(item.faculty)) {
-                                MathGroups.get(item.slot)!.push(item.faculty);
-                            }
-                        }
-                    });
-
-                    if (MathGroups.size > 0) {
-                        const [code, ...nameParts] = subject.split(' - ');
-                        const courseName = nameParts.join(' - ') || subject;
-                        const courseType = getCourseType(code);
-
-                        const slotsArr = Array.from(MathGroups.entries()).map(([slotName, faculties]) => ({
-                            slotName,
-                            slotFaculties: faculties.map(f => ({ facultyName: f }))
-                        }));
-
-                        const uniqueId = subject + '_' + slotsArr.map(s => s.slotName).join('_') + '_' + Date.now().toString() + '_' + Math.random().toString(36).substring(2, 9);
-                        const course: fullCourseData = {
-                            id: uniqueId,
-                            courseType,
-                            courseCode: code,
-                            courseName,
-                            courseSlots: slotsArr
-                        };
-                        newCourses.push(course);
-                    }
-                });
-            });
+            const newCourses = buildPreferenceCoursesFromChennaiSelection(
+                selectedDomains,
+                selectedSubjects,
+                selectedSlots,
+                selectedFaculties,
+            );
 
             if (newCourses.length > 0) {
                 let existingCourses: fullCourseData[] = [];
@@ -472,34 +360,22 @@ export default function PreferencesPage() {
         return false;
     };
 
-    const saveCurrentSelection = () => {
-        persistCurrentSelection(true);
-    };
-
-    const handleFinish = () => {
-        router.push('/courses');
-    };
-
     const canProceed = () => {
         switch (currentStep) {
             case 1:
-                return selectedDepartments.length > 0;
-            case 2:
                 return selectedDomains.length > 0;
-            case 3:
+            case 2:
                 return selectedSubjects.length > 0;
-            case 4:
+            case 3:
                 return selectedSlots.length > 0;
-            case 5:
+            case 4:
                 return selectedFaculties.length > 0;
-            case 6:
+            case 5:
                 return savedFacultyPreferences.length > 0;
             default:
                 return false;
         }
     };
-
-    const canAddAnotherProfessor = faculties.some(faculty => !selectedFaculties.includes(faculty));
 
     return (
         <>
@@ -513,7 +389,7 @@ export default function PreferencesPage() {
                     <div className="flex-1 min-h-0 bg-white rounded-[18px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-white overflow-hidden px-4 py-4 lg:px-6 lg:py-5 animate-lucid-fade-up-delayed">
                             <div className="flex items-stretch gap-[clamp(8px,0.9vw,16px)] h-full min-h-0 min-w-0 overflow-hidden" style={{ scrollBehavior: 'smooth' }}>
                         {/* Step Panels */}
-                        {[1, 2, 3, 4, 5, 6].map(stepNum => (
+                        {[1, 2, 3, 4, 5].map(stepNum => (
                             <div
                                 key={stepNum}
                                 onClick={stepNum === currentStep ? undefined : () => handleStepClick(stepNum)}
@@ -541,54 +417,29 @@ export default function PreferencesPage() {
                                                 {selectionError}
                                             </div>
                                         )}
-                                        {/* Step 1: Department Selection */}
+                                        {/* Step 1: Domain Selection */}
                                         {stepNum === 1 && (
                                             <div style={{ display: 'grid', gap: '10px' }}>
                                                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">
                                                     Select one option
                                                 </p>
-                                                {departments.map(dept => (
+                                                {domains.map(dept => (
                                                     <button
                                                         key={dept}
-                                                        onClick={() => handleDepartmentSelect(dept)}
-                                                        className={`${selectionButtonClass} cursor-pointer ${selectedDepartments.includes(dept)
+                                                        onClick={() => handleDomainSelect(dept)}
+                                                        className={`${selectionButtonClass} cursor-pointer ${selectedDomains.includes(dept)
                                                             ? selectionButtonSelectedClass
                                                             : selectionButtonUnselectedClass
                                                             }`}
                                                     >
-                                                        {deptDisplayName(dept)}
+                                                        {dept}
                                                     </button>
                                                 ))}
                                             </div>
                                         )}
 
-                                        {/* Step 2: Domain Selection */}
+                                        {/* Step 2: Subject Selection */}
                                         {stepNum === 2 && (
-                                            <div style={{ display: 'grid', gap: '10px' }}>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">
-                                                    Select one option
-                                                </p>
-                                                {domains.length > 0 ? domains.map(domain => (
-                                                    <button
-                                                        key={domain}
-                                                        onClick={() => handleDomainSelect(domain)}
-                                                        className={`${selectionButtonClass} cursor-pointer ${selectedDomains.includes(domain)
-                                                            ? selectionButtonSelectedClass
-                                                            : selectionButtonUnselectedClass
-                                                            }`}
-                                                    >
-                                                        {domain}
-                                                    </button>
-                                                )) : (
-                                                    <div className="text-center text-gray-700 py-8">
-                                                        Please select a department first
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Step 3: Subject Selection */}
-                                        {stepNum === 3 && (
                                             <div style={{ display: 'grid', gap: '10px' }}>
                                                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">
                                                     Select one option
@@ -597,7 +448,7 @@ export default function PreferencesPage() {
                                                     <button
                                                         key={subject}
                                                         onClick={() => handleSubjectSelect(subject)}
-                                                        className={`${selectionButtonClass} ${selectedSubjects.includes(subject)
+                                                        className={`${selectionButtonClass} cursor-pointer ${selectedSubjects.includes(subject)
                                                             ? selectionButtonSelectedClass
                                                             : selectionButtonUnselectedClass
                                                             }`}
@@ -617,16 +468,19 @@ export default function PreferencesPage() {
                                             </div>
                                         )}
 
-                                        {/* Step 4: Slot Selection */}
-                                        {stepNum === 4 && (
+                                        {/* Step 3: Slot Selection */}
+                                        {stepNum === 3 && (
                                             <div style={{ display: 'grid', gap: '10px' }}>
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">
+                                                    Select one option
+                                                </p>
                                                 {slots.length > 0 ? slots.map(slot => (
                                                     <button
                                                         key={slot}
                                                         onClick={() => handleSlotSelect(slot)}
-                                                        className={`w-full p-3 lg:p-4 rounded-lg text-left font-semibold transition-all duration-200 hover:-translate-y-0.5 ${selectedSlots.includes(slot)
-                                                            ? 'bg-white ring-2 ring-blue-500 shadow-md'
-                                                            : 'bg-white/80 hover:bg-white hover:shadow-sm'
+                                                        className={`${selectionButtonClass} ${selectedSlots.includes(slot)
+                                                            ? selectionButtonSelectedClass
+                                                            : selectionButtonUnselectedClass
                                                             }`}
                                                     >
                                                         {slot}
@@ -639,8 +493,8 @@ export default function PreferencesPage() {
                                             </div>
                                         )}
 
-                                        {/* Step 5: Faculty Selection */}
-                                        {stepNum === 5 && (
+                                        {/* Step 4: Faculty Selection */}
+                                        {stepNum === 4 && (
                                             <div style={{ display: 'grid', gap: '10px' }}>
                                                 <p className={`text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1 ${selectionError ? 'mt-1' : ''}`}>
                                                     Select one or more options
@@ -664,11 +518,11 @@ export default function PreferencesPage() {
                                             </div>
                                         )}
 
-                                        {/* Step 6: Faculty Priority */}
-                                        {stepNum === 6 && (
+                                        {/* Step 5: Faculty Priority */}
+                                        {stepNum === 5 && (
                                             <div className="flex flex-col h-full">
                                                 <p className="text-gray-800 font-medium mb-3">
-                                                    Professors selected in Step 5 are auto-added:
+                                                    Professors selected in Step 4 are auto-added:
                                                 </p>
 
                                                 <div className="bg-white/50 rounded-lg p-4 shadow-sm border border-white/60">
@@ -726,11 +580,11 @@ export default function PreferencesPage() {
                                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                                          </button>
                                          
-                                         {currentStep === 6 ? (
+                                        {currentStep === 5 ? (
                                              <div className="flex w-full gap-2 px-2">
                                                  <button
                                                      onClick={(e) => { e.stopPropagation(); handleAddAnotherProfessor(); }}
-                                                     title={'Reset to Step 3 and select another subject'}
+                                                     title={'Reset to Step 2 and select another subject'}
                                                      className="flex-1 px-3 py-2 rounded-lg font-bold text-sm bg-white text-blue-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
                                                  >
                                                      + Add another
@@ -813,8 +667,8 @@ export default function PreferencesPage() {
 
                     {/* LEFT - USER BOX */}
                     <div className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 w-full sm:w-auto overflow-hidden">
-                        {session?.user?.image ? (
-                            <img src={session.user.image} alt="User avatar" className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
+                            {session?.user?.image ? (
+                                <Image src={session.user.image} alt="User avatar" width={36} height={36} className="w-9 h-9 rounded-lg border border-gray-100 shrink-0" referrerPolicy="no-referrer" />
                         ) : (
                             <div className="w-9 h-9 bg-gray-300 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0">
                                 {session?.user?.name?.[0] || "?"}
