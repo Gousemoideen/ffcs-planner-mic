@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-    const baseUrl = 'https://micvitc.com'; // Replace with your actual deployed URL
+    const baseUrl = 'https://micvitc.com';
 
     return [
         {

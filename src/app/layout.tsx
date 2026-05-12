@@ -16,6 +16,7 @@ const bodyFont = Lato({
   weight: ["300", "400", "700"],
 });
 export const metadata: Metadata = {
+  metadataBase: new URL("https://micvitc.com"),
   title: "FFCS Planner - Build Your Timetable | MIC",
   description: "Plan and build your perfect timetable with the FFCS Planner. Generate clash-free schedules, export them, and share them with your friends.",
   keywords: ["FFCS", "VIT", "Timetable Planner", "Course Selection", "VIT Chennai"],
