@@ -2,7 +2,16 @@
 
 import React, { useState, useMemo } from 'react';
 import { fullCourseData } from '@/lib/type';
-import { getCourseType } from '@/lib/course_codes_map';
+import { getChennaiCourseType } from '@/lib/chennaiCatalog';
+import chennaiCourses from '@/src/data/all_data_chennai';
+
+type CourseOption = {
+    slot?: string;
+    faculty?: string;
+    labSlot?: string;
+};
+
+type CourseCatalog = Record<string, Record<string, CourseOption[]>>;
 
 interface CourseSelectorProps {
     scheme: string;
@@ -17,47 +26,33 @@ export default function CourseSelector({
 }: CourseSelectorProps) {
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [expandedCategory, setExpandedCategory] = useState<string>('');
-
     const [schemeData, categories, courses] = useMemo(() => {
-        try {
-            // Dynamically import scheme data
-            let data: any = {};
-            let cats: string[] = [];
-
-            // Map scheme names to their data
-            const schemeMap: { [key: string]: any } = {
-                SCOPE: require('@/data/SCOPE').SCOPE_LIST,
-                SENSE: require('@/data/SENSE').SENSE_LIST,
-                SELECT: require('@/data/SELECT').SELECT_LIST,
-                SMEC: require('@/data/SMEC').SMEC_LIST,
-                SCHEME: require('@/data/SCHEME').SCHEME_LIST,
-                SCORE: require('@/data/SCORE').SCORE_LIST,
-                SBST: require('@/data/SBST').SBST_LIST,
-                SCE: require('@/data/SCE').SCE_LIST,
-                SHINE: require('@/data/SHINE').SHINE_LIST,
-                SCOPE_F: require('@/data/SCOPE_F').SCOPE_F,
-                MTech_SCOPE: require('@/data/MTech_SCOPE').MTech_SCOPE,
-                MTech_SCORE: require('@/data/MTech_SCORE').MIS_LIST,
-            };
-
-            data = schemeMap[scheme] || {};
-            cats = Object.keys(data);
-
-            // Flatten all courses from all categories
-            const allCourses: { [key: string]: any } = {};
-            for (const category of cats) {
-                const categoryData = data[category];
-                if (categoryData) {
-                    Object.assign(allCourses, categoryData);
-                }
-            }
-
-            return [data, cats, allCourses];
-        } catch (error) {
-            console.error('Error loading scheme data:', error);
-            return [{}, [], {}];
+        if (scheme !== 'CHENNAI') {
+            return [{} as CourseCatalog, [] as string[], {} as Record<string, CourseOption[]>];
         }
+
+        const chennaiCategoryData: CourseCatalog = {};
+
+        chennaiCourses.forEach((record) => {
+            const category = record.TYPE || 'UNKNOWN';
+            const courseKey = `${record.CODE} - ${record.TITLE}`;
+
+            chennaiCategoryData[category] ||= {};
+            chennaiCategoryData[category][courseKey] ||= [];
+            chennaiCategoryData[category][courseKey].push({
+                slot: record.SLOT,
+                faculty: record.FACULTY,
+            });
+        });
+
+        const chennaiCategories = Object.keys(chennaiCategoryData);
+        const chennaiAllCourses: Record<string, CourseOption[]> = {};
+
+        chennaiCategories.forEach((category) => {
+            Object.assign(chennaiAllCourses, chennaiCategoryData[category]);
+        });
+
+        return [chennaiCategoryData, chennaiCategories, chennaiAllCourses];
     }, [scheme]);
 
     const filteredCourses = useMemo(() => {
@@ -78,26 +73,24 @@ export default function CourseSelector({
         return filtered;
     }, [selectedCategory, searchTerm, courses, schemeData]);
 
-    const buildFullCourseData = (courseCode: string, courseOptions: any): fullCourseData => {
+    const buildFullCourseData = (courseCode: string, courseOptions: CourseOption[]): fullCourseData => {
         // Extract course code and name from format like "BCSE202L - Data Structures and Algorithms"
         const [code, ...nameParts] = courseCode.split(' - ');
         const courseName = nameParts.join(' - ') || courseCode;
         
         // Determine course type
-        const courseType = getCourseType(code);
+        const courseType = getChennaiCourseType(code);
 
         // Default to single slot per faculty if not provided
-        const courseSlots = Array.isArray(courseOptions)
-            ? courseOptions.map((option: any) => ({
-                  slotName: option.slot || '',
-                  slotFaculties: [
-                      {
-                          facultyName: option.faculty || '',
-                          facultyLabSlot: option.labSlot,
-                      },
-                  ],
-              }))
-            : [];
+        const courseSlots = courseOptions.map((option) => ({
+            slotName: option.slot || '',
+            slotFaculties: [
+                {
+                    facultyName: option.faculty || '',
+                    facultyLabSlot: option.labSlot,
+                },
+            ],
+        }));
 
         return {
             id: courseCode,
@@ -108,7 +101,7 @@ export default function CourseSelector({
         };
     };
 
-    const handleCourseSelect = (courseCode: string, courseOptions: any) => {
+    const handleCourseSelect = (courseCode: string, courseOptions: CourseOption[]) => {
         const fullData = buildFullCourseData(courseCode, courseOptions);
         onCourseSelect(fullData);
     };
