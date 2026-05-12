@@ -17,11 +17,8 @@ type RateLimitEntry = {
 };
 
 declare global {
-    // eslint-disable-next-line no-var
     var __ffcsRateLimitStore: Map<string, RateLimitEntry> | undefined;
-    // eslint-disable-next-line no-var
     var __ffcsRedisClient: Redis | undefined;
-    // eslint-disable-next-line no-var
     var __ffcsRedisRateLimiters: Map<string, Ratelimit> | undefined;
 }
 

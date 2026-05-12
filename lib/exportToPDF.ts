@@ -133,7 +133,7 @@ export const exportToPDF = async (
                 ignoreElements: (el: Element) => {
                     return el.tagName === 'IFRAME';
                 },
-            } as any);
+            });
 
             buildPdfFromImage(canvas.toDataURL('image/png'), canvas.width, canvas.height);
         } catch (error) {
