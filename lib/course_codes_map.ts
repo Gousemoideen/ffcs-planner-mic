@@ -1,6 +1,35 @@
 // Course code to type mapping
 // E = Embedded (theory + lab combined), L = Lab only, P = Project-based
 // Courses NOT in this map are treated as theory-only by default
+import chennaiCourses from '@/src/data/all_data_chennai';
+
+const chennaiCourseTypeMap = new Map<string, 'th' | 'lab' | 'both'>();
+
+const chennaiCourseTypeFlags = new Map<string, { hasTheory: boolean; hasLab: boolean }>();
+
+for (const course of chennaiCourses) {
+    const current = chennaiCourseTypeFlags.get(course.CODE) || { hasTheory: false, hasLab: false };
+    const normalizedType = course.TYPE.trim().toUpperCase();
+
+    if (normalizedType === 'LO' || normalizedType === 'ELA') {
+        current.hasLab = true;
+    } else {
+        current.hasTheory = true;
+    }
+
+    chennaiCourseTypeFlags.set(course.CODE, current);
+}
+
+for (const [courseCode, flags] of chennaiCourseTypeFlags.entries()) {
+    if (flags.hasTheory && flags.hasLab) {
+        chennaiCourseTypeMap.set(courseCode, 'both');
+    } else if (flags.hasLab) {
+        chennaiCourseTypeMap.set(courseCode, 'lab');
+    } else {
+        chennaiCourseTypeMap.set(courseCode, 'th');
+    }
+}
+
 export const course_type_map: Record<string, string> = {
     // Mtech
     CSI1007: 'E',
@@ -118,7 +147,10 @@ export const course_type_map: Record<string, string> = {
  * Default (not in map) = 'th' (theory only)
  */
 export function getCourseType(courseCode: string): 'th' | 'lab' | 'both' {
-    const prefix = courseCode.split(/\d+/)[0]; // Get alphabetic prefix
+    const chennaiType = chennaiCourseTypeMap.get(courseCode) || chennaiCourseTypeMap.get(courseCode.replace(/[LP]$/, ''));
+
+    if (chennaiType) return chennaiType;
+
     const typeCode = course_type_map[courseCode] || course_type_map[courseCode.replace(/[LP]$/, '')];
     
     if (typeCode === 'E') return 'both';
