@@ -162,7 +162,7 @@ function TimetableTable({
                                                     <span className={`font-bold text-black leading-tight ${exportMode ? 'text-[15px]' : 'text-[10px]'}`}>{theoryLabel}</span>
                                                     <span className={`font-bold text-black opacity-80 uppercase leading-tight ${exportMode ? 'mt-1 px-1 text-[13px]' : 'px-1 text-[8px] max-w-15.5 truncate'}`}>{theoryCell.courseCode}</span>
                                                     {exportMode && (
-                                                        <span className="mt-1 px-2 text-center text-[11px] font-semibold leading-tight text-black/85 wrap-break-word line-clamp-2">
+                                                        <span className={`mt-1 px-2 text-center font-semibold leading-tight text-black/85 wrap-break-word ${getShortCourseName(theoryCell.courseName).length > 25 ? 'text-[9px] line-clamp-3' : 'text-[11px] line-clamp-2'}`}>
                                                             {getShortCourseName(theoryCell.courseName)}
                                                         </span>
                                                     )}
@@ -185,7 +185,7 @@ function TimetableTable({
                                                     <span className={`font-bold text-black leading-tight ${exportMode ? 'text-[15px]' : 'text-[10px]'}`}>{labLabel}</span>
                                                     <span className={`font-bold text-black opacity-80 uppercase leading-tight ${exportMode ? 'mt-1 px-1 text-[13px]' : 'px-1 text-[8px] max-w-15.5 truncate'}`}>{labCell.courseCode}</span>
                                                     {exportMode && (
-                                                        <span className="mt-1 px-2 text-center text-[11px] font-semibold leading-tight text-black/85 wrap-break-word line-clamp-2">
+                                                        <span className={`mt-1 px-2 text-center font-semibold leading-tight text-black/85 wrap-break-word ${getShortCourseName(labCell.courseName).length > 25 ? 'text-[9px] line-clamp-3' : 'text-[11px] line-clamp-2'}`}>
                                                             {getShortCourseName(labCell.courseName)}
                                                         </span>
                                                     )}
@@ -847,8 +847,8 @@ export default function TimetablePage() {
                                         <tr key={code} className="border-t border-[#2c2c2c]">
                                             <td className="px-5 py-4 text-[16px] font-medium text-black whitespace-pre-wrap">{info.slots.join('\n')}</td>
                                             <td className="px-5 py-4 text-[16px] font-medium text-black">{code}</td>
-                                            <td className="px-5 py-4 text-[16px] font-medium text-black">{info.courseName}</td>
-                                            <td className="px-5 py-4 text-[16px] font-medium text-black">{info.facultyName}</td>
+                                            <td className={`px-5 py-4 font-medium text-black ${info.courseName.length > 40 ? 'text-[13px]' : 'text-[16px]'}`}>{info.courseName}</td>
+                                            <td className={`px-5 py-4 font-medium text-black ${info.facultyName.length > 25 ? 'text-[13px]' : 'text-[16px]'}`}>{info.facultyName}</td>
                                             <td className="px-5 py-4 text-[16px] font-medium text-black">TBD</td>
                                             <td className="px-5 py-4 text-[16px] font-medium text-black">TBD</td>
                                         </tr>
@@ -906,7 +906,7 @@ export default function TimetablePage() {
                         </button>
 
                         <div className="pr-8">
-                            <h2 className="text-center text-[22px] font-black leading-[1.1] text-black">
+                            <h2 className={`text-center font-black leading-[1.1] text-black ${((selectedSlot.courseCode?.length || 0) + (selectedSlot.courseName?.length || 0)) > 40 ? 'text-[17px]' : 'text-[22px]'}`}>
                                 {selectedSlot.courseCode} - {selectedSlot.courseName}
                             </h2>
                             <p className="mt-2 text-center text-[18px] font-black text-black">
@@ -917,11 +917,11 @@ export default function TimetablePage() {
                         <div className="mt-4 flex flex-1 flex-col justify-evenly">
                             <p className="text-[16px] leading-[1.35] text-black">
                                 <span className="font-black">Faculty Name:</span>{' '}
-                                <span className="font-semibold text-black/75">{selectedSlot.facultyName || '-'}</span>
+                                <span className={`font-semibold text-black/75 ${(selectedSlot.facultyName?.length || 0) > 25 ? 'text-[13px] leading-tight block' : ''}`}>{selectedSlot.facultyName || '-'}</span>
                             </p>
                             <p className="text-[16px] leading-[1.35] text-black">
                                 <span className="font-black">Course Name:</span>{' '}
-                                <span className="font-semibold text-black/75">{selectedSlot.courseName || '-'}</span>
+                                <span className={`font-semibold text-black/75 ${(selectedSlot.courseName?.length || 0) > 35 ? 'text-[13px] leading-tight block' : ''}`}>{selectedSlot.courseName || '-'}</span>
                             </p>
                             <p className="text-[16px] leading-[1.35] text-black">
                                 <span className="font-black">Course Code:</span>{' '}

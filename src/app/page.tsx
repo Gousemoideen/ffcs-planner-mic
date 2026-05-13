@@ -269,9 +269,7 @@ export default function LandingPage() {
           </div>
         )}
         <nav className="navbar">
-          <div className="logo" style={{ display: 'flex', alignItems: 'center' }}>
-            <Image src="/mic-logo.png" alt="MIC Logo" width={80} height={40} className="object-contain" priority />
-          </div>
+          <div className="logo">FFCS</div>
           {session ? (
             <div className="relative">
               <div

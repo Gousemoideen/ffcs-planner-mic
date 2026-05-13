@@ -319,7 +319,7 @@ export default function SharePage() {
                         </button>
 
                         <div className="pr-8">
-                            <h2 className="text-center text-[22px] font-black leading-[1.1] text-black">
+                            <h2 className={`text-center font-black leading-[1.1] text-black ${((selectedSlot.courseCode?.length || 0) + (selectedSlot.courseName?.length || 0)) > 40 ? 'text-[17px]' : 'text-[22px]'}`}>
                                 {selectedSlot.courseCode} - {selectedSlot.courseName}
                             </h2>
                             <p className="mt-2 text-center text-[18px] font-black text-black">
@@ -330,11 +330,11 @@ export default function SharePage() {
                         <div className="mt-4 flex flex-1 flex-col justify-evenly">
                             <p className="text-[16px] leading-[1.35] text-black">
                                 <span className="font-black">Faculty Name:</span>{' '}
-                                <span className="font-semibold text-black/75">{selectedSlot.facultyName || 'TBD'}</span>
+                                <span className={`font-semibold text-black/75 ${(selectedSlot.facultyName?.length || 0) > 25 ? 'text-[13px] leading-tight block' : ''}`}>{selectedSlot.facultyName || 'TBD'}</span>
                             </p>
                             <p className="text-[16px] leading-[1.35] text-black">
                                 <span className="font-black">Course Name:</span>{' '}
-                                <span className="font-semibold text-black/75">{selectedSlot.courseName || 'TBD'}</span>
+                                <span className={`font-semibold text-black/75 ${(selectedSlot.courseName?.length || 0) > 35 ? 'text-[13px] leading-tight block' : ''}`}>{selectedSlot.courseName || 'TBD'}</span>
                             </p>
                             <p className="text-[16px] leading-[1.35] text-black">
                                 <span className="font-black">Course Code:</span>{' '}
