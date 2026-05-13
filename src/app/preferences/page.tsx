@@ -81,6 +81,8 @@ export default function PreferencesPage() {
     const { data: session } = useSession();
     const { addCourse } = usePreferences();
 
+    const itemRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
+
     const [currentStep, setCurrentStep] = useState(1);
     const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
     const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
@@ -154,6 +156,8 @@ export default function PreferencesPage() {
         return () => window.clearTimeout(timer);
     }, []);
 
+
+
     // Load Chennai domain data dynamically
     const domainData = useMemo<ChennaiDomainCatalog>(() => {
         return getChennaiDepartmentData(selectedDomains);
@@ -206,6 +210,35 @@ export default function PreferencesPage() {
 
         return Array.from(facultySet);
     }, [selectedSubjects, selectedDomains, selectedSlots, domainData]);
+
+    // Keyboard navigation to scroll to items starting with pressed key
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            const key = e.key.toLowerCase();
+            if (key.length === 1 && /[a-z]/.test(key)) {
+                let itemsToSearch: string[] = [];
+                if (currentStep === 1) itemsToSearch = domains;
+                else if (currentStep === 2) itemsToSearch = subjects;
+                else if (currentStep === 3) itemsToSearch = slots;
+                else if (currentStep === 4) itemsToSearch = faculties;
+
+                const targetItem = itemsToSearch.find(item => item.toLowerCase().startsWith(key));
+                if (targetItem && itemRefs.current[targetItem]) {
+                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Optional: add a temporary highlight effect
+                    itemRefs.current[targetItem].classList.add('ring-4', 'ring-blue-300');
+                    setTimeout(() => {
+                        itemRefs.current[targetItem]?.classList.remove('ring-4', 'ring-blue-300');
+                    }, 500);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [currentStep, domains, subjects, slots, faculties]);
 
     const handleNext = () => {
         if (currentStep === 4) {
@@ -426,6 +459,7 @@ export default function PreferencesPage() {
                                                 {domains.map(dept => (
                                                     <button
                                                         key={dept}
+                                                        ref={(el) => { itemRefs.current[dept] = el; }}
                                                         onClick={() => handleDomainSelect(dept)}
                                                         className={`${selectionButtonClass} cursor-pointer ${selectedDomains.includes(dept)
                                                             ? selectionButtonSelectedClass
@@ -447,6 +481,7 @@ export default function PreferencesPage() {
                                                 {subjects.length > 0 ? subjects.map(subject => (
                                                     <button
                                                         key={subject}
+                                                        ref={(el) => { itemRefs.current[subject] = el; }}
                                                         onClick={() => handleSubjectSelect(subject)}
                                                         className={`${selectionButtonClass} cursor-pointer ${selectedSubjects.includes(subject)
                                                             ? selectionButtonSelectedClass
@@ -477,6 +512,7 @@ export default function PreferencesPage() {
                                                 {slots.length > 0 ? slots.map(slot => (
                                                     <button
                                                         key={slot}
+                                                        ref={(el) => { itemRefs.current[slot] = el; }}
                                                         onClick={() => handleSlotSelect(slot)}
                                                         className={`${selectionButtonClass} ${selectedSlots.includes(slot)
                                                             ? selectionButtonSelectedClass
@@ -502,6 +538,7 @@ export default function PreferencesPage() {
                                                 {faculties.length > 0 ? faculties.map((faculty, idx) => (
                                                     <button
                                                         key={idx}
+                                                        ref={(el) => { itemRefs.current[faculty] = el; }}
                                                         onClick={() => handleFacultySelect(faculty)}
                                                         className={`${selectionButtonClass} ${selectedFaculties.includes(faculty)
                                                             ? selectionButtonSelectedClass
