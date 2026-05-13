@@ -72,7 +72,7 @@ const STEP_LABELS = [
     'Faculty Priority',
 ];
 
-const selectionButtonClass = 'w-full p-3 lg:p-4 rounded-lg text-left font-semibold transition-all duration-200 hover:-translate-y-0.5';
+const selectionButtonClass = 'w-full p-3 lg:p-4 rounded-lg text-left font-semibold transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:bg-white';
 const selectionButtonSelectedClass = 'bg-white ring-2 ring-blue-500 shadow-md';
 const selectionButtonUnselectedClass = 'bg-white/80 hover:bg-white hover:shadow-sm';
 
@@ -223,7 +223,16 @@ export default function PreferencesPage() {
             else if (currentStep === 3) itemsToSearch = slots;
             else if (currentStep === 4) itemsToSearch = faculties;
 
-            // Handle Arrow Keys
+            if (key === 'enter' && currentStep === 4) {
+                if (selectedFaculties.length > 0) {
+                    e.preventDefault();
+                    // Mirror exactly what handleNext() does for Step 4
+                    const persisted = persistCurrentSelection(false);
+                    if (persisted) setCurrentStep(5);
+                }
+                return;
+            }
+
             if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
                 if (itemsToSearch.length === 0) return;
                 e.preventDefault();
@@ -243,7 +252,12 @@ export default function PreferencesPage() {
                 const targetItem = itemsToSearch[nextIndex];
                 if (targetItem && itemRefs.current[targetItem]) {
                     itemRefs.current[targetItem].focus();
-                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    
+                    if (currentStep === 1) handleDomainSelect(targetItem, false);
+                    else if (currentStep === 2) handleSubjectSelect(targetItem, false);
+                    else if (currentStep === 3) handleSlotSelect(targetItem, false);
+                    else if (currentStep === 4) handleFacultySelect(targetItem, false);
                 }
                 return;
             }
@@ -252,18 +266,19 @@ export default function PreferencesPage() {
                 const targetItem = itemsToSearch.find(item => item.toLowerCase().startsWith(key));
                 if (targetItem && itemRefs.current[targetItem]) {
                     itemRefs.current[targetItem].focus();
-                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    itemRefs.current[targetItem].classList.add('ring-4', 'ring-blue-600', 'bg-blue-100');
-                    setTimeout(() => {
-                        itemRefs.current[targetItem]?.classList.remove('ring-4', 'ring-blue-600', 'bg-blue-100');
-                    }, 500);
+                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    
+                    if (currentStep === 1) handleDomainSelect(targetItem, false);
+                    else if (currentStep === 2) handleSubjectSelect(targetItem, false);
+                    else if (currentStep === 3) handleSlotSelect(targetItem, false);
+                    else if (currentStep === 4) handleFacultySelect(targetItem, false);
                 }
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentStep, domains, subjects, slots, faculties]);
+    }, [currentStep, domains, subjects, slots, faculties, selectedFaculties]);
 
     const handleNext = () => {
         if (currentStep === 4) {
@@ -300,33 +315,71 @@ export default function PreferencesPage() {
         setCookie('preferenceStep', '2');
     };
 
-    const handleDomainSelect = (domain: string) => {
+    const handleDomainSelect = (domain: string, autoAdvance = true) => {
         setSelectionError('');
-        setSelectedDomains(prev => (prev[0] === domain ? [] : [domain]));
-        setSelectedSubjects([]);
-        setSelectedSlots([]);
-        setSelectedFaculties([]);
+        
+        setSelectedDomains([domain]);
+        
+        if (selectedDomains[0] !== domain) {
+            setSelectedSubjects([]);
+            setSelectedSlots([]);
+            setSelectedFaculties([]);
+        }
+
+        if (autoAdvance) {
+            setTimeout(() => setCurrentStep(2), 200);
+        }
     };
 
-    const handleSubjectSelect = (subject: string) => {
+    const handleSubjectSelect = (subject: string, autoAdvance = true) => {
         setSelectionError('');
-        setSelectedSubjects(prev => (prev[0] === subject ? [] : [subject]));
-        setSelectedSlots([]);
-        setSelectedFaculties([]);
+        
+        setSelectedSubjects([subject]);
+        
+        if (selectedSubjects[0] !== subject) {
+            setSelectedSlots([]);
+            setSelectedFaculties([]);
+        }
+
+        if (autoAdvance) {
+            setTimeout(() => setCurrentStep(3), 200);
+        }
     };
 
-    const handleSlotSelect = (slot: string) => {
+    const handleSlotSelect = (slot: string, autoAdvance = true) => {
         setSelectionError('');
-        setSelectedSlots(prev =>
-            prev.includes(slot) ? prev.filter(s => s !== slot) : [...prev, slot]
-        );
+        setSelectedSlots([slot]);
+        
+        if (selectedSlots[0] !== slot) {
+            setSelectedFaculties([]);
+        }
+
+        if (autoAdvance) {
+            setTimeout(() => setCurrentStep(4), 200);
+        }
     };
 
-    const handleFacultySelect = (faculty: string) => {
+    const handleFacultySelect = (faculty: string, autoAdvance = true) => {
         setSelectionError('');
-        setSelectedFaculties(prev =>
-            prev.includes(faculty) ? prev.filter(f => f !== faculty) : [...prev, faculty]
-        );
+        
+        if (!autoAdvance) {
+            // Keyboard navigation: strictly single-select to keep the "one selection" visual
+            setSelectedFaculties([faculty]);
+        } else {
+            // Mouse click or manual Enter: toggle multi-select
+            setSelectedFaculties(prev =>
+                prev.includes(faculty) ? prev.filter(f => f !== faculty) : [...prev, faculty]
+            );
+            
+            // If the user hits Enter on a button that's already selected, it could mean they want to proceed.
+            // But for now, let's just let them toggle. 
+            // If autoAdvance is true and they are in Step 4, handleNext() was previously called.
+            // Let's only auto-advance if they press Next or if we want to be aggressive.
+            // The user said: "if the user clicks two or more faculty... let them move to the next section"
+            // I'll leave the auto-advance for faculty selection to be manual (via Next button) 
+            // OR we can make it so that if they've selected some and click an already selected one, it advances?
+            // Actually, let's keep it simple: manual Next for multi-select.
+        }
     };
 
     const persistCurrentSelection = (resetWizard = true) => {
