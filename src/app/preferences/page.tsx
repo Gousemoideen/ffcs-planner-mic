@@ -217,20 +217,45 @@ export default function PreferencesPage() {
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
             const key = e.key.toLowerCase();
-            if (key.length === 1 && /[a-z]/.test(key)) {
-                let itemsToSearch: string[] = [];
-                if (currentStep === 1) itemsToSearch = domains;
-                else if (currentStep === 2) itemsToSearch = subjects;
-                else if (currentStep === 3) itemsToSearch = slots;
-                else if (currentStep === 4) itemsToSearch = faculties;
+            let itemsToSearch: string[] = [];
+            if (currentStep === 1) itemsToSearch = domains;
+            else if (currentStep === 2) itemsToSearch = subjects;
+            else if (currentStep === 3) itemsToSearch = slots;
+            else if (currentStep === 4) itemsToSearch = faculties;
 
+            // Handle Arrow Keys
+            if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+                if (itemsToSearch.length === 0) return;
+                e.preventDefault();
+                
+                const activeElement = document.activeElement as HTMLButtonElement;
+                const currentIndex = itemsToSearch.findIndex(item => itemRefs.current[item] === activeElement);
+                let nextIndex = 0;
+
+                if (currentIndex !== -1) {
+                    if (key === 'arrowdown' || key === 'arrowright') {
+                        nextIndex = Math.min(itemsToSearch.length - 1, currentIndex + 1);
+                    } else if (key === 'arrowup' || key === 'arrowleft') {
+                        nextIndex = Math.max(0, currentIndex - 1);
+                    }
+                }
+                
+                const targetItem = itemsToSearch[nextIndex];
+                if (targetItem && itemRefs.current[targetItem]) {
+                    itemRefs.current[targetItem].focus();
+                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                return;
+            }
+
+            if (key.length === 1 && /[a-z]/.test(key)) {
                 const targetItem = itemsToSearch.find(item => item.toLowerCase().startsWith(key));
                 if (targetItem && itemRefs.current[targetItem]) {
+                    itemRefs.current[targetItem].focus();
                     itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Optional: add a temporary highlight effect
-                    itemRefs.current[targetItem].classList.add('ring-4', 'ring-blue-300');
+                    itemRefs.current[targetItem].classList.add('ring-4', 'ring-blue-600', 'bg-blue-100');
                     setTimeout(() => {
-                        itemRefs.current[targetItem]?.classList.remove('ring-4', 'ring-blue-300');
+                        itemRefs.current[targetItem]?.classList.remove('ring-4', 'ring-blue-600', 'bg-blue-100');
                     }, 500);
                 }
             }
