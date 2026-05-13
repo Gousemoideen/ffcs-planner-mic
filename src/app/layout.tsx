@@ -20,6 +20,11 @@ export const metadata: Metadata = {
   title: "FFCS Planner - Build Your Timetable | MIC",
   description: "Plan and build your perfect timetable with the FFCS Planner. Generate clash-free schedules, export them, and share them with your friends.",
   keywords: ["FFCS", "VIT", "Timetable Planner", "Course Selection", "VIT Chennai"],
+  icons: {
+    icon: "/mic-logo.png",
+    shortcut: "/mic-logo.png",
+    apple: "/mic-logo.png",
+  },
   openGraph: {
     title: "FFCS Planner",
     description: "Build your perfect clash-free timetable easily.",
