@@ -229,6 +229,7 @@ export default function CoursesPage() {
     const [isReordering, setIsReordering] = useState(false);
     const [clashingUids, setClashingUids] = useState<Set<string>>(new Set());
     const [isHelpOpen, setIsHelpOpen] = useState(false);
+    const [showRemoveAllToast, setShowRemoveAllToast] = useState(false);
 
     const [deletedRow, setDeletedRow] = useState<{ faculty: FacultyEntry; index: number } | null>(null);
 
@@ -434,12 +435,18 @@ export default function CoursesPage() {
         setLastRemovedFaculties(faculties);
         setFaculties([]);
         setDeletedRow(null);
+        setShowRemoveAllToast(true);
     };
 
     const handleUndoRemoveAll = () => {
         if (!lastRemovedFaculties || lastRemovedFaculties.length === 0) return;
         setFaculties(renumber(lastRemovedFaculties));
         setLastRemovedFaculties(null);
+        setShowRemoveAllToast(false);
+    };
+
+    const handleDismissRemoveAllToast = () => {
+        setShowRemoveAllToast(false);
     };
 
     const syncAndOpenTimetable = () => {
@@ -574,18 +581,6 @@ export default function CoursesPage() {
                                     </div>
                                 )}
 
-                                {faculties.length === 0 && lastRemovedFaculties && lastRemovedFaculties.length > 0 && (
-                                    <div className="grid grid-cols-[60px_minmax(120px,1fr)_minmax(220px,1.4fr)_minmax(180px,1.2fr)_minmax(120px,1fr)_minmax(90px,120px)] border-b border-[#f0f0f0] bg-[#fafafa] items-center">
-                                        <div />
-                                        <div className="col-span-3 px-5 py-3 text-sm text-gray-600 italic">All courses deleted.</div>
-                                        <div className="px-5 py-3 col-span-2 text-right">
-                                            <button
-                                                onClick={handleUndoRemoveAll}
-                                                className="text-sm font-bold text-[#1f1f1f] hover:text-black transition cursor-pointer"
-                                            >Undo</button>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -627,6 +622,40 @@ export default function CoursesPage() {
                     </div>
                 </div>
             </div>
+
+            {showRemoveAllToast && lastRemovedFaculties && lastRemovedFaculties.length > 0 && (
+                <div className="fixed bottom-28 left-1/2 z-50 w-[min(92vw,574px)] -translate-x-1/2 rounded-lg bg-[#F9E176] shadow-[0_14px_35px_rgba(0,0,0,0.18)] overflow-hidden">
+                    <div className="flex items-center gap-4 px-4 py-4 md:px-6">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f7d85f] text-black">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                                <path d="M12 9v4" />
+                                <path d="M12 17h.01" />
+                            </svg>
+                        </div>
+                        <p className="flex-1 text-[17px] font-medium leading-tight text-black md:text-[20px]">Deleted all subjects.</p>
+                        <button
+                            type="button"
+                            onClick={handleUndoRemoveAll}
+                            className="rounded-full px-4 py-2 text-[18px] font-black text-black transition-colors hover:bg-black/10"
+                        >
+                            Undo
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleDismissRemoveAllToast}
+                            aria-label="Dismiss"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-black transition-colors hover:bg-black/10"
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                                <path d="M18 6 6 18" />
+                                <path d="M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div className="h-3 bg-[#F4B35B]" />
+                </div>
+            )}
 
 
             {/* Bottom Navigation */}
