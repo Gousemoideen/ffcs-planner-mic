@@ -168,6 +168,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   justify-content: flex-start;
 }
@@ -180,6 +181,8 @@
   flex: 0 0 auto;
   min-height: fit-content;
   overflow: hidden;
+  width: 100%;
+  min-width: 0;
 }
 
 /* ── Cards box (horizontal scroll row) ── */
@@ -197,6 +200,8 @@
   scrollbar-gutter: stable;
   align-items: stretch;
   align-content: flex-start;
+  width: 100%;
+  min-width: 0;
 }
 
 .white-cards-box::-webkit-scrollbar {
