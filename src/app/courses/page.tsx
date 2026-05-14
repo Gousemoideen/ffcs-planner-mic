@@ -657,20 +657,20 @@ export default function CoursesPage() {
             </div>
 
             {showRemoveAllToast && lastRemovedFaculties && lastRemovedFaculties.length > 0 && (
-                <div className="fixed bottom-44 right-24 z-50 w-[min(78vw,460px)] rounded-lg bg-[#F9E176] shadow-[0_14px_35px_rgba(0,0,0,0.18)] overflow-hidden">
-                    <div className="flex items-center gap-3 px-3 py-3 md:px-4">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f7d85f] text-black">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                <div className="fixed bottom-44 right-24 z-50 w-[min(80vw,480px)] rounded-lg bg-[#F9E176] shadow-[0_14px_35px_rgba(0,0,0,0.18)] overflow-hidden">
+                    <div className="flex items-center gap-2.5 px-3 py-2 md:px-4">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f7d85f] text-black">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
                                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
                                 <path d="M12 9v4" />
                                 <path d="M12 17h.01" />
                             </svg>
                         </div>
-                        <p className="flex-1 text-[16px] font-medium leading-tight text-black">Deleted all subjects.</p>
+                        <p className="flex-1 text-[15px] font-medium leading-tight text-black">Deleted all subjects.</p>
                         <button
                             type="button"
                             onClick={handleUndoRemoveAll}
-                            className="rounded-full px-3 py-1.5 text-[16px] font-black text-black transition-colors hover:bg-black/10"
+                            className="rounded-full px-3 py-1 text-[15px] font-black text-black transition-colors hover:bg-black/10"
                         >
                             Undo
                         </button>
@@ -678,15 +678,15 @@ export default function CoursesPage() {
                             type="button"
                             onClick={handleDismissRemoveAllToast}
                             aria-label="Dismiss"
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-black transition-colors hover:bg-black/10"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-black transition-colors hover:bg-black/10"
                         >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                                 <path d="M18 6 6 18" />
                                 <path d="M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
-                    <div className="h-2 overflow-hidden bg-[#F4B35B]">
+                    <div className="h-1.5 overflow-hidden bg-[#F4B35B]">
                         <div key={showRemoveAllToast ? 'running' : 'stopped'} className="h-full w-full origin-left bg-[#D9942F] animate-[toastCountdown_3s_linear_forwards]" />
                     </div>
                 </div>
