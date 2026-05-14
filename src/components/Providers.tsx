@@ -8,6 +8,7 @@ import { FlagsmithProvider as FlagsmithSDKProvider, useFlagsmith } from '@flagsm
 import { TimetableProvider } from '@/lib/TimeTableContext';
 import { PreferencesProvider } from '@/lib/PreferencesContext';
 import AuthCacheSync from '@/components/AuthCacheSync';
+import PlannerOnboardingTour from '@/components/PlannerOnboardingTour';
 import posthog from 'posthog-js';
 
 const isFlagsmithEnabled = Boolean(process.env.NEXT_PUBLIC_FLAGSMITH_ENVIRONMENT_ID);
@@ -94,6 +95,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                     <TimetableProvider>
                         <AuthCacheSync />
                         {children}
+                        <PlannerOnboardingTour />
                     </TimetableProvider>
                 </PreferencesProvider>
             </FlagsmithSDKProvider>
