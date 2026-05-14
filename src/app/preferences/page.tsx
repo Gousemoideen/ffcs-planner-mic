@@ -247,12 +247,31 @@ export default function PreferencesPage() {
             else if (currentStep === 3) itemsToSearch = slots;
             else if (currentStep === 4) itemsToSearch = faculties;
 
-            if (key === 'enter' && currentStep === 4) {
-                if (selectedFaculties.length > 0) {
+            if (key === 'enter') {
+                if (currentStep === 4) {
+                    if (selectedFaculties.length > 0) {
+                        e.preventDefault();
+                        // Mirror exactly what handleNext() does for Step 4
+                        const persisted = persistCurrentSelection(false);
+                        if (persisted) setCurrentStep(5);
+                    }
+                    return;
+                }
+                // Steps 1, 2, 3 — advance if a selection has been made
+                if (currentStep === 1 && selectedDomains.length > 0) {
                     e.preventDefault();
-                    // Mirror exactly what handleNext() does for Step 4
-                    const persisted = persistCurrentSelection(false);
-                    if (persisted) setCurrentStep(5);
+                    setCurrentStep(2);
+                    return;
+                }
+                if (currentStep === 2 && selectedSubjects.length > 0) {
+                    e.preventDefault();
+                    setCurrentStep(3);
+                    return;
+                }
+                if (currentStep === 3 && selectedSlots.length > 0) {
+                    e.preventDefault();
+                    setCurrentStep(4);
+                    return;
                 }
                 return;
             }
@@ -302,7 +321,7 @@ export default function PreferencesPage() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentStep, domains, subjects, slots, faculties, selectedFaculties]);
+    }, [currentStep, domains, subjects, slots, faculties, selectedDomains, selectedSubjects, selectedSlots, selectedFaculties]);
 
     const handleNext = () => {
         if (currentStep === 4) {
