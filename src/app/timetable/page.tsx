@@ -636,12 +636,12 @@ export default function TimetablePage() {
 
             <div className="h-full px-[clamp(12px,1.5vw,24px)] pt-[clamp(10px,1vh,18px)] pb-29">
                 <div className="w-full max-w-450 h-full mx-auto flex flex-col min-h-0">
-                    <div className="flex items-center gap-4 px-2 pt-4.5 pb-2 shrink-0">
+                    <div data-tour="timetable-intro" className="flex items-center gap-4 px-2 pt-4.5 pb-2 shrink-0">
                         <h1 className="text-[24px] font-bold text-black">Timetables Generated</h1>
                     </div>
 
                     {/* Main Table Container */}
-                    <div className="bg-white rounded-[18px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-white flex-1 min-h-0 overflow-hidden flex flex-col p-3" id="timetable-grid">
+                    <div data-tour="timetable-grid" className="bg-white rounded-[18px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-white flex-1 min-h-0 overflow-hidden flex flex-col p-3" id="timetable-grid">
 
                         <div id="rat" className="flex-1 min-h-0 overflow-auto scrollbar-thin rounded-[14px] border border-[#f1f1f1]">
                             <div className="h-full">
@@ -660,7 +660,7 @@ export default function TimetablePage() {
                         {/* Pagination & Action Controls */}
                         <div className="flex flex-wrap items-center justify-between pt-2 mt-2 gap-3 shrink-0 w-full border-t border-[#f2ede3]">
                             {/* Pagination */}
-                            <div className="flex items-center gap-1 bg-[#A0C4FF]/80 p-2 rounded-xl shadow-sm">
+                            <div data-tour="timetable-pagination" className="flex items-center gap-1 bg-[#A0C4FF]/80 p-2 rounded-xl shadow-sm">
                                 <button
                                     onClick={() => setCurrentIndex(0)}
                                     className="w-8 h-8 flex items-center justify-center rounded-lg text-black hover:bg-white/40 transition-colors font-bold text-lg"
@@ -730,6 +730,7 @@ export default function TimetablePage() {
 
             {/* Bottom Navigation */}
             <div
+                data-tour="timetable-bottom-navigation"
                 className="fixed bottom-0 left-0 right-0 z-40 bg-[#F5E6D3] py-6 px-[clamp(16px,2vw,32px)] w-full flex justify-center"
                 style={{ fontFamily: 'Inter, Arial, Helvetica, sans-serif' }}
             >

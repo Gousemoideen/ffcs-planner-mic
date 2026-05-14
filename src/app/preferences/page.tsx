@@ -34,6 +34,7 @@ import { fullCourseData } from '@/lib/type';
 import { getPlannerStoredValue, setPlannerStoredValue } from '@/lib/plannerStorage';
 import { FEATURE_FLAGS } from '@/lib/featureFlags';
 import ModeHelpDialog from '@/components/ModeHelpDialog';
+import { PREFERENCE_TOUR_STEP_EVENT } from '@/components/plannerTourSteps';
 import type { ChennaiDomainCatalog } from '@/lib/chennaiCatalog';
 import {
     buildPreferenceCoursesFromChennaiSelection,
@@ -190,6 +191,18 @@ export default function PreferencesPage() {
     useEffect(() => {
         const timer = window.setTimeout(() => setIsVisible(true), 40);
         return () => window.clearTimeout(timer);
+    }, []);
+
+    useEffect(() => {
+        const handleTourStep = (event: Event) => {
+            const step = (event as CustomEvent<{ step?: number }>).detail?.step;
+            if (typeof step === 'number' && step >= 1 && step <= 5) {
+                setCurrentStep(step);
+            }
+        };
+
+        window.addEventListener(PREFERENCE_TOUR_STEP_EVENT, handleTourStep);
+        return () => window.removeEventListener(PREFERENCE_TOUR_STEP_EVENT, handleTourStep);
     }, []);
 
 
@@ -717,9 +730,9 @@ export default function PreferencesPage() {
             <div className="h-full px-[clamp(12px,1.5vw,24px)] pt-[clamp(10px,1vh,18px)] pb-29">
                 <div className="w-full max-w-450 h-full mx-auto flex flex-col min-h-0">
                     <div className="flex items-center justify-between gap-4 px-2 pt-6 pb-3 shrink-0">
-                        <h1 className="text-[26px] lg:text-3xl font-bold text-black animate-lucid-fade-up">Select Your Preferences</h1>
+                        <h1 data-tour="preferences-intro" className="text-[26px] lg:text-3xl font-bold text-black animate-lucid-fade-up">Select Your Preferences</h1>
                         {isFacultyFirstToggleAvailable && (
-                            <div className="shrink-0 flex h-11 items-center gap-2 rounded-[10px] bg-[#F6E9AB] px-3 py-2 shadow-sm">
+                            <div data-tour="preferences-faculty-first-mode" className="shrink-0 flex h-11 items-center gap-2 rounded-[10px] bg-[#F6E9AB] px-3 py-2 shadow-sm">
                                 <span className="text-sm font-extrabold text-gray-900 whitespace-nowrap">
                                     Faculty first mode
                                 </span>
@@ -760,6 +773,7 @@ export default function PreferencesPage() {
                         {[1, 2, 3, 4, 5].map(stepNum => (
                             <div
                                 key={stepNum}
+                                data-tour={stepNum === currentStep ? `preferences-step-${stepNum}` : undefined}
                                 onClick={stepNum === currentStep ? undefined : () => handleStepClick(stepNum)}
                                 className={`rounded-2xl flex items-center justify-center transition-all duration-300 overflow-hidden shrink-0 ${
   stepNum === currentStep

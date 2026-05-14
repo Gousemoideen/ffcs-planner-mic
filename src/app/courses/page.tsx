@@ -507,7 +507,7 @@ export default function CoursesPage() {
                     <h1 className="text-3xl sm:text-4xl font-bold text-black px-2 pt-2 shrink-0">Your Courses</h1>
 
                     {/* Selected Courses Card */}
-                    <div className="w-full flex-1 min-h-0 bg-[#fcfcfc] rounded-3xl shadow-sm border border-[#eaeaea] overflow-hidden animate-lucid-fade-up-delayed flex flex-col">
+                    <div data-tour="courses-review-table" className="w-full flex-1 min-h-0 bg-[#fcfcfc] rounded-3xl shadow-sm border border-[#eaeaea] overflow-hidden animate-lucid-fade-up-delayed flex flex-col">
                         <div className="bg-[#a9d6a9] px-6 py-4 shrink-0">
                             <h2 className="text-2xl font-bold text-[#1f1f1f]">Selected Courses</h2>
                         </div>
@@ -620,7 +620,7 @@ export default function CoursesPage() {
                         <div className="px-6 py-4 flex items-center justify-between border-t border-[#ededed] bg-[#fcfcfc] shrink-0">
 
                             <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 bg-[#f2e6b5] rounded-xl px-3 py-2 shadow-[0_4px_10px_rgba(0,0,0,0.08)]">
+                                <div data-tour="courses-all-subjects-mode" className="flex items-center gap-2 bg-[#f2e6b5] rounded-xl px-3 py-2 shadow-[0_4px_10px_rgba(0,0,0,0.08)]">
                                     <span className="text-sm font-semibold text-[#1f1f1f]">All subjects mode</span>
                                     <button
                                         type="button"
@@ -778,6 +778,7 @@ export default function CoursesPage() {
                         </button>
                         <button
                             onClick={syncAndOpenTimetable}
+                            data-tour="courses-generate-next"
                             className="px-10 py-3 bg-[#A0C4FF] hover:bg-[#90B4EF] rounded-[10px] font-bold text-sm text-black transition-all duration-200 cursor-pointer"
                         >
                             Next
