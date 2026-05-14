@@ -590,6 +590,10 @@ export default function TimetablePage() {
         });
     });
 
+    const sharePrompt = 'Check out my FFCS timetable';
+    const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(`${sharePrompt}: ${shareUrl}`)}`;
+    const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(sharePrompt)}`;
+
     if (status === 'loading' || isGenerating) {
         return (
             <div className="min-h-screen bg-cream flex items-center justify-center">
@@ -965,69 +969,151 @@ export default function TimetablePage() {
             )}
 
             {showDownloadModal && (
-                <div className="fixed inset-0 z-520 flex items-center justify-center bg-black/35 backdrop-blur-xs" onClick={() => setShowDownloadModal(false)}>
-                    <div className="w-[92%] max-w-105 rounded-3xl bg-white p-7 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                        <h2 className="text-center text-[24px] font-black text-black">Download PDF</h2>
-                        <p className="mt-2 text-center text-[15px] font-medium text-gray-600">Choose what you want to download.</p>
-                        <div className="mt-6 flex flex-col gap-3">
-                            <br></br>
+                <div className="fixed inset-0 z-520 flex items-center justify-center bg-black/35 px-4 backdrop-blur-sm" onClick={() => setShowDownloadModal(false)}>
+                    <div
+                        className="relative w-full max-w-118 animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[30px] border border-[#eadcc5] bg-[#FFF8E7] p-7 shadow-[0_24px_70px_rgba(74,54,30,0.18)] sm:p-8"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="mb-4! flex items-start gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#C8F7DC]/80 text-black shadow-[0_10px_22px_rgba(200,247,220,0.3)]">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <path d="M7 10l5 5 5-5" />
+                                    <path d="M12 15V3" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 className="text-[24px] font-black leading-tight text-black">Download PDF</h2>
+                                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#6b6257]">Choose the timetable view or selected courses list.</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-4! flex flex-col gap-2 sm:grid-cols-2">
                             <button
                                 onClick={() => handleDownload('timetable')}
-                                className="rounded-2xl bg-[#C8F7DC] px-5 py-4 text-left text-[16px] font-bold text-black transition-colors hover:bg-[#b0eac8]"
+                                className="flex min-h-16 items-center justify-center gap-1 rounded-2xl border border-[#bfead0] bg-[#C8F7DC] px-5 py-4 text-[16px] font-semibold text-black shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-all hover:bg-[#b0eac8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8F7DC] active:scale-[0.98]"
                             >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                                    <path d="M7 8h10" />
+                                    <path d="M7 12h10" />
+                                    <path d="M7 16h6" />
+                                </svg>
                                 Timetable
                             </button>
                             <button
                                 onClick={() => handleDownload('slots')}
-                                className="rounded-2xl bg-[#A0C4FF] px-5 py-4 text-left text-[16px] font-bold text-black transition-colors hover:bg-[#8fb6f2]"
+                                className="flex min-h-16 items-center justify-center gap-3 rounded-2xl border border-[#d8e5fb] bg-[#A0C4FF] px-5 py-4 text-[16px] font-semibold text-black shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-all hover:bg-[#8fb6f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/70 active:scale-[0.98]"
                             >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M8 6h13" />
+                                    <path d="M8 12h13" />
+                                    <path d="M8 18h13" />
+                                    <path d="M3 6h.01" />
+                                    <path d="M3 12h.01" />
+                                    <path d="M3 18h.01" />
+                                </svg>
                                 Selected Courses
                             </button>
                         </div>
-                        <br></br>
-                        <button
-                            onClick={() => setShowDownloadModal(false)}
-                            className="mt-3! w-full rounded-[14px] bg-[#f3f4f6] px-4 py-3 text-[15px] font-semibold text-gray-700 transition-colors hover:bg-[#e5e7eb]"
-                        >
-                            Cancel
-                        </button>
+                        <div className="pt-1">
+                            <button
+                                onClick={() => setShowDownloadModal(false)}
+                                className="w-full rounded-2xl bg-white px-6 py-3.5 text-center text-[16px] font-black text-[#6b6257] shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-colors hover:bg-[#f6ead8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/60"
+                            >
+                                Cancel
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
 
             {/* Share Modal */}
             {showShareModal && (
-                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowShareModal(false)}>
+                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/35 px-4 backdrop-blur-sm" onClick={() => setShowShareModal(false)}>
                     <div
-                        className="bg-white rounded-3xl shadow-2xl p-8 w-[90%] max-w-100 relative animate-[scaleIn_0.2s_ease]"
+                        className="relative w-full max-w-118 animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[30px] border border-[#eadcc5] bg-[#FFF8E7] p-7 shadow-[0_24px_70px_rgba(74,54,30,0.18)] sm:p-8"
                         onClick={e => e.stopPropagation()}
                     >
-                        <h2 className="text-[24px] font-black text-black mb-4">Timetable Shared!</h2>
-                        <p className="text-[15px] text-gray-600 mb-6 font-medium">Use the link below to share your timetable with friends.</p>
-                        
-                        <div className="flex gap-2 mb-6">
-                            <input
-                                type="text"
-                                value={shareUrl}
-                                readOnly
-                                className="w-full p-4 border-2 border-gray-100 rounded-xl text-black font-semibold text-[14px] bg-gray-50 focus:outline-none"
-                            />
-                            <button
-                                onClick={async () => {
-                                    const copied = await copyToClipboard(shareUrl);
-                                    if (copied) showToast('Share link copied!');
-                                }}
-                                className="px-6 bg-[#A0C4FF] hover:bg-[#8ab2f2] text-black font-bold rounded-xl transition-all active:scale-95 flex items-center justify-center"
-                                title="Copy to clipboard"
-                            >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                            </button>
+                        <div className="mb-4! flex items-start gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#A0C4FF]/65 text-black shadow-[0_10px_22px_rgba(160,196,255,0.28)]">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 className="text-[24px] font-black leading-tight text-black">Share Timetable</h2>
+                                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#6b6257]">Copy the link or send it directly to your friends.</p>
+                            </div>
                         </div>
 
-                        <div className="flex items-center justify-end">
+                        <div className="mb-1! rounded-2xl border border-[#eadcc5] bg-white p-2.5 shadow-[0_8px_24px_rgba(74,54,30,0.05)]">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={shareUrl}
+                                    readOnly
+                                    className="min-w-0 flex-1 rounded-xl bg-[#F8E8D2]/45 px-4 py-3 text-[13px] font-semibold text-[#1f2937] outline-none"
+                                    aria-label="Share timetable link"
+                                />
+                                <button
+                                    onClick={async () => {
+                                        const copied = await copyToClipboard(shareUrl);
+                                        if (copied) showToast('Share link copied!');
+                                    }}
+                                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#A0C4FF] text-black transition-all hover:bg-[#8ab2f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/70 active:scale-95"
+                                    title="Copy to clipboard"
+                                >
+                                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mb-4! grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <a
+                                href={whatsappShareUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex min-h-13 items-center justify-center gap-2 rounded-2xl border border-[#bfead0] bg-[#C8F7DC] px-4 py-3 text-[15px] font-semibold text-black transition-all hover:bg-[#b0eac8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8F7DC] active:scale-[0.98]"
+                            >
+                                <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <path fillRule="evenodd" clipRule="evenodd" d="M16 31C23.732 31 30 24.732 30 17C30 9.26801 23.732 3 16 3C8.26801 3 2 9.26801 2 17C2 19.5109 2.661 21.8674 3.81847 23.905L2 31L9.31486 29.3038C11.3014 30.3854 13.5789 31 16 31ZM16 28.8462C22.5425 28.8462 27.8462 23.5425 27.8462 17C27.8462 10.4576 22.5425 5.15385 16 5.15385C9.45755 5.15385 4.15385 10.4576 4.15385 17C4.15385 19.5261 4.9445 21.8675 6.29184 23.7902L5.23077 27.7692L9.27993 26.7569C11.1894 28.0746 13.5046 28.8462 16 28.8462Z" fill="#BFC8D0" />
+                                    <path d="M28 16C28 22.6274 22.6274 28 16 28C13.4722 28 11.1269 27.2184 9.19266 25.8837L5.09091 26.9091L6.16576 22.8784C4.80092 20.9307 4 18.5589 4 16C4 9.37258 9.37258 4 16 4C22.6274 4 28 9.37258 28 16Z" fill="url(#whatsapp-share-gradient)" />
+                                    <path fillRule="evenodd" clipRule="evenodd" d="M16 30C23.732 30 30 23.732 30 16C30 8.26801 23.732 2 16 2C8.26801 2 2 8.26801 2 16C2 18.5109 2.661 20.8674 3.81847 22.905L2 30L9.31486 28.3038C11.3014 29.3854 13.5789 30 16 30ZM16 27.8462C22.5425 27.8462 27.8462 22.5425 27.8462 16C27.8462 9.45755 22.5425 4.15385 16 4.15385C9.45755 4.15385 4.15385 9.45755 4.15385 16C4.15385 18.5261 4.9445 20.8675 6.29184 22.7902L5.23077 26.7692L9.27993 25.7569C11.1894 27.0746 13.5046 27.8462 16 27.8462Z" fill="white" />
+                                    <path d="M12.5 9.49989C12.1672 8.83131 11.6565 8.8905 11.1407 8.8905C10.2188 8.8905 8.78125 9.99478 8.78125 12.05C8.78125 13.7343 9.52345 15.578 12.0244 18.3361C14.438 20.9979 17.6094 22.3748 20.2422 22.3279C22.875 22.2811 23.4167 20.0154 23.4167 19.2503C23.4167 18.9112 23.2062 18.742 23.0613 18.696C22.1641 18.2654 20.5093 17.4631 20.1328 17.3124C19.7563 17.1617 19.5597 17.3656 19.4375 17.4765C19.0961 17.8018 18.4193 18.7608 18.1875 18.9765C17.9558 19.1922 17.6103 19.083 17.4665 19.0015C16.9374 18.7892 15.5029 18.1511 14.3595 17.0426C12.9453 15.6718 12.8623 15.2001 12.5959 14.7803C12.3828 14.4444 12.5392 14.2384 12.6172 14.1483C12.9219 13.7968 13.3426 13.254 13.5313 12.9843C13.7199 12.7145 13.5702 12.305 13.4803 12.05C13.0938 10.953 12.7663 10.0347 12.5 9.49989Z" fill="white" />
+                                    <defs>
+                                        <linearGradient id="whatsapp-share-gradient" x1="26.5" y1="7" x2="4" y2="28" gradientUnits="userSpaceOnUse">
+                                            <stop stopColor="#5BD066" />
+                                            <stop offset="1" stopColor="#27B43E" />
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
+                                WhatsApp
+                            </a>
+                            <a
+                                href={telegramShareUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex min-h-13 items-center justify-center gap-2 rounded-2xl border border-[#d8e5fb] bg-[#A0C4FF] px-4 py-3 text-[15px] font-semibold text-black transition-all hover:bg-[#8fb6f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/70 active:scale-[0.98]"
+                            >
+                                <svg width="22" height="22" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid" aria-hidden="true">
+                                    <path d="M128 0C57.307 0 0 57.307 0 128C0 198.693 57.307 256 128 256C198.693 256 256 198.693 256 128C256 57.307 198.693 0 128 0Z" fill="#40B3E0" />
+                                    <path d="M190.2826 73.6308L167.4206 188.8978C167.4206 188.8978 164.2236 196.8918 155.4306 193.0548L102.6726 152.6068L83.4886 143.3348L51.1946 132.4628C51.1946 132.4628 46.2386 130.7048 45.7586 126.8678C45.2796 123.0308 51.3546 120.9528 51.3546 120.9528L179.7306 70.5928C179.7306 70.5928 190.2826 65.9568 190.2826 73.6308Z" fill="#FFFFFF" />
+                                    <path d="M98.6178 187.6035C98.6178 187.6035 97.0778 187.4595 95.1588 181.3835C93.2408 175.3085 83.4888 143.3345 83.4888 143.3345L161.0258 94.0945C161.0258 94.0945 165.5028 91.3765 165.3428 94.0945C165.3428 94.0945 166.1418 94.5735 163.7438 96.8115C161.3458 99.0505 102.8328 151.6475 102.8328 151.6475" fill="#D2E5F1" />
+                                    <path d="M122.9015 168.1154L102.0335 187.1414C102.0335 187.1414 100.4025 188.3794 98.6175 187.6034L102.6135 152.2624" fill="#B5CFE4" />
+                                </svg>
+                                Telegram
+                            </a>
+                        </div>
+
+                        <div className="pt-1">
                             <button
                                 onClick={() => setShowShareModal(false)}
-                                className="min-w-33 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-center text-[16px] font-bold text-gray-800 transition-colors rounded-xl"
+                                className="w-full rounded-2xl bg-white px-6 py-3.5 text-center text-[16px] font-black text-[#6b6257] shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-colors hover:bg-[#f6ead8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/60"
                             >
                                 Close
                             </button>
@@ -1038,40 +1124,55 @@ export default function TimetablePage() {
 
             {/* Save Modal */}
             {showSaveModal && (
-                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => {
+                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/35 px-4 backdrop-blur-sm" onClick={() => {
                     setSaveError('');
                     setShowSaveModal(false);
                 }}>
                     <div
-                        className="bg-white rounded-3xl shadow-2xl p-8 w-[90%] max-w-100 relative animate-[scaleIn_0.2s_ease]"
+                        className="relative w-full max-w-118 animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[30px] border border-[#eadcc5] bg-[#FFF8E7] p-7 shadow-[0_24px_70px_rgba(74,54,30,0.18)] sm:p-8"
                         onClick={e => e.stopPropagation()}
                     >
-                        <h2 className="text-[24px] font-black text-black mb-4">Save Timetable</h2>
-                        <input
-                            type="text"
-                            value={timetableTitle}
-                            onChange={(e) => {
-                                setTimetableTitle(e.target.value);
-                                if (saveError) {
-                                    setSaveError('');
-                                }
-                            }}
-                            className="w-full p-4 border-2 border-gray-100 rounded-xl mb-6 text-black font-semibold text-[16px] focus:border-[#A0C4FF] focus:ring-2 focus:ring-[#A0C4FF]/20 outline-none transition-all placeholder:font-medium"
-                            placeholder="Enter a title..."
-                            autoFocus
-                        />
+                        <div className="mb-4! flex items-start gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#F9A8D4]/60 text-black shadow-[0_10px_22px_rgba(249,168,212,0.24)]">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                                    <path d="M17 21v-8H7v8" />
+                                    <path d="M7 3v5h8" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 className="text-[24px] font-black leading-tight text-black">Save Timetable</h2>
+                                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#6b6257]">Give this schedule a name before saving it.</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-3! rounded-2xl border border-[#eadcc5] bg-white p-2.5 shadow-[0_8px_24px_rgba(74,54,30,0.05)]">
+                            <input
+                                type="text"
+                                value={timetableTitle}
+                                onChange={(e) => {
+                                    setTimetableTitle(e.target.value);
+                                    if (saveError) {
+                                        setSaveError('');
+                                    }
+                                }}
+                                className="w-full rounded-xl bg-[#F8E8D2]/45 px-4 py-3.5 text-[16px] font-semibold text-black outline-none transition-all placeholder:font-medium placeholder:text-[#8a8177] focus:ring-2 focus:ring-[#A0C4FF]/45"
+                                placeholder="Enter a title..."
+                                autoFocus
+                            />
+                        </div>
                         {saveError && (
-                            <p className="mb-4 rounded-xl bg-[#fff1f2] px-4 py-3 text-[14px] font-medium text-[#b42318]">
+                            <p className="mb-6 rounded-2xl border border-[#fecdd3] bg-[#fff1f2] px-4 py-3 text-[14px] font-semibold text-[#b42318]">
                                 {saveError}
                             </p>
                         )}
-                        <div className="mt-4! margin flex items-center justify-end gap-5">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <button
                                 onClick={() => {
                                     setSaveError('');
                                     setShowSaveModal(false);
                                 }}
-                                className="min-w-33 px-6 py-3 text-center text-[16px] font-bold text-[#667085] transition-colors hover:text-[#475467]"
+                                className="min-h-13 rounded-2xl bg-white px-6 py-3.5 text-center text-[16px] font-black text-[#6b6257] shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-colors hover:bg-[#f6ead8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/60"
                             >
                                 Cancel
                             </button>
@@ -1080,7 +1181,7 @@ export default function TimetablePage() {
                                     handleSave(timetableTitle);
                                 }}
                                 disabled={isSaving || !timetableTitle.trim()}
-                                className="min-w-30 rounded-[22px] bg-[#9dbcf2] px-8 py-3 text-center text-[18px] font-black text-black shadow-[0_8px_18px_rgba(157,188,242,0.35)] transition-all hover:bg-[#8eb1ef] disabled:opacity-50"
+                                className="min-h-13 rounded-2xl bg-[#A0C4FF] px-6 py-3.5 text-center text-[16px] font-black text-black shadow-[0_8px_20px_rgba(160,196,255,0.32)] transition-all hover:bg-[#8eb1ef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/70 active:scale-[0.98] disabled:opacity-50"
                             >
                                 Save
                             </button>
