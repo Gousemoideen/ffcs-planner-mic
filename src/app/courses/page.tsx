@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
@@ -230,6 +230,7 @@ export default function CoursesPage() {
     const [clashingUids, setClashingUids] = useState<Set<string>>(new Set());
     const [isHelpOpen, setIsHelpOpen] = useState(false);
     const [showRemoveAllToast, setShowRemoveAllToast] = useState(false);
+    const removeAllToastTimerRef = useRef<number | null>(null);
 
     const [deletedRow, setDeletedRow] = useState<{ faculty: FacultyEntry; index: number } | null>(null);
 
@@ -440,14 +441,46 @@ export default function CoursesPage() {
 
     const handleUndoRemoveAll = () => {
         if (!lastRemovedFaculties || lastRemovedFaculties.length === 0) return;
+        if (removeAllToastTimerRef.current) {
+            window.clearTimeout(removeAllToastTimerRef.current);
+            removeAllToastTimerRef.current = null;
+        }
         setFaculties(renumber(lastRemovedFaculties));
         setLastRemovedFaculties(null);
         setShowRemoveAllToast(false);
     };
 
     const handleDismissRemoveAllToast = () => {
+        if (removeAllToastTimerRef.current) {
+            window.clearTimeout(removeAllToastTimerRef.current);
+            removeAllToastTimerRef.current = null;
+        }
+        setLastRemovedFaculties(null);
         setShowRemoveAllToast(false);
     };
+
+    useEffect(() => {
+        if (!showRemoveAllToast || !lastRemovedFaculties || lastRemovedFaculties.length === 0) {
+            if (removeAllToastTimerRef.current) {
+                window.clearTimeout(removeAllToastTimerRef.current);
+                removeAllToastTimerRef.current = null;
+            }
+            return;
+        }
+
+        removeAllToastTimerRef.current = window.setTimeout(() => {
+            setShowRemoveAllToast(false);
+            setLastRemovedFaculties(null);
+            removeAllToastTimerRef.current = null;
+        }, 3000);
+
+        return () => {
+            if (removeAllToastTimerRef.current) {
+                window.clearTimeout(removeAllToastTimerRef.current);
+                removeAllToastTimerRef.current = null;
+            }
+        };
+    }, [showRemoveAllToast, lastRemovedFaculties]);
 
     const syncAndOpenTimetable = () => {
         const rowsForGeneration = allSubjectsMode ? faculties : visibleFaculties;
@@ -489,7 +522,7 @@ export default function CoursesPage() {
                         </div>
 
                         {visibleFaculties.length === 0 && !(lastRemovedFaculties && lastRemovedFaculties.length > 0) && !deletedRow ? (
-                            <div className="flex-1 min-h-0 flex items-center justify-center px-6 py-12 text-xl text-[#1f1f1f] font-medium">
+                            <div className="flex-1 min-h-0 flex items-center justify-center px-6 py-12 text-[22px] text-[#1f1f1f] font-medium">
                                 All subjects have been deleted.
                             </div>
                         ) : (
@@ -624,20 +657,20 @@ export default function CoursesPage() {
             </div>
 
             {showRemoveAllToast && lastRemovedFaculties && lastRemovedFaculties.length > 0 && (
-                <div className="fixed bottom-28 left-1/2 z-50 w-[min(92vw,574px)] -translate-x-1/2 rounded-lg bg-[#F9E176] shadow-[0_14px_35px_rgba(0,0,0,0.18)] overflow-hidden">
-                    <div className="flex items-center gap-4 px-4 py-4 md:px-6">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f7d85f] text-black">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                <div className="fixed bottom-44 right-24 z-50 w-[min(78vw,460px)] rounded-lg bg-[#F9E176] shadow-[0_14px_35px_rgba(0,0,0,0.18)] overflow-hidden">
+                    <div className="flex items-center gap-3 px-3 py-3 md:px-4">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f7d85f] text-black">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
                                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
                                 <path d="M12 9v4" />
                                 <path d="M12 17h.01" />
                             </svg>
                         </div>
-                        <p className="flex-1 text-[17px] font-medium leading-tight text-black md:text-[20px]">Deleted all subjects.</p>
+                        <p className="flex-1 text-[16px] font-medium leading-tight text-black">Deleted all subjects.</p>
                         <button
                             type="button"
                             onClick={handleUndoRemoveAll}
-                            className="rounded-full px-4 py-2 text-[18px] font-black text-black transition-colors hover:bg-black/10"
+                            className="rounded-full px-3 py-1.5 text-[16px] font-black text-black transition-colors hover:bg-black/10"
                         >
                             Undo
                         </button>
@@ -645,15 +678,17 @@ export default function CoursesPage() {
                             type="button"
                             onClick={handleDismissRemoveAllToast}
                             aria-label="Dismiss"
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-black transition-colors hover:bg-black/10"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-black transition-colors hover:bg-black/10"
                         >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                                 <path d="M18 6 6 18" />
                                 <path d="M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
-                    <div className="h-3 bg-[#F4B35B]" />
+                    <div className="h-2 overflow-hidden bg-[#F4B35B]">
+                        <div key={showRemoveAllToast ? 'running' : 'stopped'} className="h-full w-full origin-left bg-[#D9942F] animate-[toastCountdown_3s_linear_forwards]" />
+                    </div>
                 </div>
             )}
 
@@ -780,6 +815,10 @@ export default function CoursesPage() {
                     0% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
                     55% { opacity: 0.65; transform: translateX(10px) scale(0.98); filter: blur(1px); }
                     100% { opacity: 0; transform: translateX(28px) scale(0.9); filter: blur(4px); }
+                }
+                @keyframes toastCountdown {
+                    from { transform: scaleX(1); }
+                    to { transform: scaleX(0); }
                 }
                 .animate-cartoon-move-up { animation: cartoonMoveUp 620ms cubic-bezier(0.22,0.7,0.2,1); }
                 .animate-cartoon-move-down { animation: cartoonMoveDown 620ms cubic-bezier(0.22,0.7,0.2,1); }
