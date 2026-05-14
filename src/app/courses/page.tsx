@@ -9,7 +9,6 @@ import { clashMap } from '@/lib/slots';
 import { generateTT } from '@/lib/utils';
 import { useTimetable } from '@/lib/TimeTableContext';
 import { getPlannerStoredValue, setPlannerStoredValue } from '@/lib/plannerStorage';
-import { getChennaiCourseType } from '@/lib/chennaiCatalog';
 
 type FacultyEntry = {
     uid: string;

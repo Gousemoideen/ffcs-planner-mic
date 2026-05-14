@@ -5,8 +5,6 @@ import LoginModal from "../components/loginPopup"
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { clearPlannerClientCache } from "@/lib/clientCache";
-import { useFlags, useFlagsmithLoading } from '@flagsmith/flagsmith/react';
-import { FEATURE_FLAGS } from '@/lib/featureFlags';
 
 type FloatingTile = {
   id: number;
