@@ -10,13 +10,13 @@ cp .env.example .env.local
 
 To enable feature flags with Flagsmith, set `NEXT_PUBLIC_FLAGSMITH_ENVIRONMENT_ID` in `.env.local`.
 
-For rollout rules, naming, and cleanup steps, see [FEATURE_FLAGS_GUIDE.md](FEATURE_FLAGS_GUIDE.md).
-For agent-facing repository guidance, see [agents.md](agents.md).
+For rollout rules, naming, and cleanup steps, see [docs/feature-flags.md](docs/feature-flags.md).
+For agent-facing repository guidance, see [docs/agents.md](docs/agents.md).
 
 ## Helpful Docs
 
-- [FEATURE_FLAGS_GUIDE.md](FEATURE_FLAGS_GUIDE.md) - rollout rules and flag lifecycle
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - common setup and runtime fixes
+- [docs/feature-flags.md](docs/feature-flags.md) - rollout rules and flag lifecycle
+- [docs/troubleshooting.md](docs/troubleshooting.md) - common setup and runtime fixes
 - [CONTRIBUTING.md](CONTRIBUTING.md) - workflow, checks, and PR guidance
 
 ## Feature Flag Checklist
