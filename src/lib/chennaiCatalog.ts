@@ -46,6 +46,31 @@ export function buildChennaiCatalog(records: readonly ChennaiCourseRecord[] = ch
 
 export const chennaiCatalog = buildChennaiCatalog();
 
+let creditIndex: Map<string, number> | null = null;
+
+export function getCourseCredits(code: string, slot: string, faculty: string): number {
+    if (!creditIndex) {
+        creditIndex = new Map();
+        chennaiCourses.forEach((r) => {
+            r.SLOT.split('+').forEach((s) => {
+                const key = `${r.CODE}|${s.trim()}|${r.FACULTY}`;
+                creditIndex!.set(key, r.CREDITS);
+            });
+            // Also index by full slot string
+            creditIndex!.set(`${r.CODE}|${r.SLOT}|${r.FACULTY}`, r.CREDITS);
+        });
+    }
+
+    // Try full match first
+    const fullKey = `${code}|${slot}|${faculty}`;
+    if (creditIndex.has(fullKey)) return creditIndex.get(fullKey)!;
+
+    const firstSlot = slot.split('+')[0].trim();
+    const partialKey = `${code}|${firstSlot}|${faculty}`;
+    return creditIndex.get(partialKey) || 0;
+}
+
+
 export const chennaiDepartments = Object.keys(chennaiCatalog);
 
 export function getChennaiDepartmentData(selectedDepartments: string[]): ChennaiDomainCatalog {

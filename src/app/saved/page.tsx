@@ -12,7 +12,7 @@ import { exportToPDF } from '@/lib/exportToPDF';
 import Image from 'next/image';
 import './saved.css';
 import { setPlannerStoredValue } from '@/lib/plannerStorage';
-import { getChennaiCourseType } from '@/lib/chennaiCatalog';
+import { getChennaiCourseType, getCourseCredits } from '@/lib/chennaiCatalog';
 
 
 /* ── Slot → timetable grid mapping ── */
@@ -672,15 +672,31 @@ function TimetableDetailView({
     });
 
     /* unique courses for Selected Courses table */
-    const courseMap = new Map<string, { courseName: string; facultyName: string; slots: string[] }>();
+    const courseMap = new Map<string, { courseName: string; facultyName: string; slots: string[]; credits: number }>();
     tt.slots.forEach(s => {
         if (!courseMap.has(s.courseCode)) {
-            courseMap.set(s.courseCode, { courseName: s.courseName, facultyName: s.facultyName, slots: [] });
+            courseMap.set(s.courseCode, { courseName: s.courseName, facultyName: s.facultyName, slots: [], credits: 0 });
         }
-        courseMap.get(s.courseCode)!.slots.push(s.slot);
+        const info = courseMap.get(s.courseCode)!;
+        if (!info.slots.includes(s.slot)) {
+            info.slots.push(s.slot);
+            
+            // Calculate credits
+            if (s.courseCode.includes('__')) {
+                const codes = s.courseCode.split('__');
+                const slots = s.slot.split('__');
+                info.credits += getCourseCredits(codes[0], slots[0], s.facultyName);
+                if (codes[1] && slots[1]) {
+                    info.credits += getCourseCredits(codes[1], slots[1], s.facultyName);
+                }
+            } else {
+                info.credits += getCourseCredits(s.courseCode, s.slot, s.facultyName);
+            }
+        }
     });
     const courses = Array.from(courseMap.entries());
-    const exportCreditsLabel = 'TBD';
+    const totalCredits = courses.reduce((sum, [, info]) => sum + info.credits, 0);
+    const exportCreditsLabel = totalCredits.toString();
 
     const THEORY_TIME_LABELS = [
         '8:00am-\n8:50am', '8:55am-\n9:45am', '9:50am-\n10:40am', '10:45am-\n11:35am',
@@ -880,7 +896,9 @@ function TimetableDetailView({
             <div className="pointer-events-none fixed -left-2500 -top-2500" aria-hidden="true">
                 <div id="saved-selected-courses-export-sheet" style={{ width: 1200, background: '#F8E8D2', padding: 48 }}>
                     <div style={{ borderRadius: 36, border: '1px solid #d9d9d9', background: '#fff', paddingLeft: 40, paddingRight: 40, paddingTop: 32, paddingBottom: 40, boxShadow: '0 12px 40px rgba(0,0,0,0.04)' }}>
-                        <h2 style={{ marginTop: 0, marginBottom: 56, textAlign: 'center', fontSize: 30, lineHeight: 1.2, fontWeight: 900, color: '#000' }}>{tt.title}</h2>
+                        <div style={{ minHeight: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 24, paddingRight: 24, paddingBottom: 24, marginBottom: 32, borderBottom: '1px solid #ececec' }}>
+                            <h2 style={{ margin: 0, textAlign: 'center', fontSize: 34, lineHeight: 1.15, fontWeight: 900, color: '#000' }}>{tt.title}</h2>
+                        </div>
                         <div style={{ overflow: 'hidden', borderTop: '1px solid #2c2c2c', borderBottom: '1px solid #2c2c2c', background: '#fff', marginBottom: 32 }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
                                 <thead style={{ background: '#D9EBE5' }}>
@@ -901,7 +919,7 @@ function TimetableDetailView({
                                             <td style={{ padding: '16px 20px', fontSize: 16, fontWeight: 500 }}>{info.courseName}</td>
                                             <td style={{ padding: '16px 20px', fontSize: 16, fontWeight: 500 }}>{info.facultyName}</td>
                                             <td style={{ padding: '16px 20px', fontSize: 16, fontWeight: 500 }}>TBD</td>
-                                            <td style={{ padding: '16px 20px', fontSize: 16, fontWeight: 500 }}>TBD</td>
+                                            <td style={{ padding: '16px 20px', fontSize: 16, fontWeight: 500 }}>{info.credits}</td>
                                         </tr>
                                     ))}
                                     <tr style={{ borderTop: '1px solid #2c2c2c', background: '#E7E7E7' }}>
