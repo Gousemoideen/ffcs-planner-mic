@@ -43,7 +43,7 @@ export default function FeedbackPage() {
 
     return (
         <div className="min-h-screen bg-[#FCF5E5] flex flex-col items-center py-10 px-4">
-            <div className="w-full max-w-2xl bg-white rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.05)] overflow-hidden mt-10 border border-gray-100">
+            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.05)] overflow-hidden mt-10 border border-gray-100">
                 <div className="p-8 md:p-12">
                     <div className="flex justify-between items-center mb-8">
                         <h1 className="text-3xl font-extrabold text-black tracking-tight" style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}>Give Feedback</h1>
