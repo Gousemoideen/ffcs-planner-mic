@@ -442,7 +442,7 @@ export default function TeamPage() {
                     className="floating-tile"
                     style={{
                       background: tile.color,
-                      transform: `translate3d(${tile.x + tile.jitterX}px, ${tile.y + tile.jitterY}px, ${zDepth}px) rotate(${tile.angle}deg) scale(${scale})`,
+                      transform: `translate3d(${tile.x}px, ${tile.y}px, ${zDepth}px) rotate(${tile.angle}deg) scale(${scale})`,
                       zIndex: Math.round((tile.depth + 1) * 10)
                     }}
                   >

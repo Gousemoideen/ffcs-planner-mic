@@ -312,10 +312,10 @@ export default function LandingPage() {
               course selection and slot management tools
             </p>
             <div className="hero-buttons">
-              <button className="btn-primary">Get Started</button>
+              <button className="btn-primary" onClick={() => setOpen(true)}>Get Started</button>
               {open && (
                 <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
-                  <div className="flex items-center justify-center w-full max-w-237.25 bg-[#FFFCEE] rounded-[20px] shadow-xl p-6 mx-4 relative">
+                  <div className="flex items-center justify-center w-full max-w-4xl bg-[#FFFCEE] rounded-[20px] shadow-xl p-6 mx-4 relative">
                     <div className="relative bg-[#FAFAFA] w-full flex flex-col items-center rounded-[20px] p-8 shadow-[4px_4px_4px_rgba(191,191,191,0.25)]">
                       <button onClick={() => setOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-black text-[28px] z-10">✕</button>
                       <h2 className="text-[clamp(22px,3vw,32px)] font-semibold text-center mb-2 mt-2">
