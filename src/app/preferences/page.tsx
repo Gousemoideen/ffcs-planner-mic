@@ -79,7 +79,7 @@ const selectionButtonUnselectedClass = 'bg-white/80 hover:bg-white hover:shadow-
 export default function PreferencesPage() {
     const router = useRouter();
     const { data: session } = useSession();
-    const { addCourse } = usePreferences();
+    const { addCourse, updateCourse } = usePreferences();
 
     const itemRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -189,6 +189,30 @@ export default function PreferencesPage() {
             });
         });
         return Array.from(slotSet);
+    }, [selectedSubjects, selectedDomains, domainData]);
+
+    // Slot type map: theory (ETH/TH) vs lab (ELA/LO) — used for labels in Step 3
+    const slotTypes = useMemo<Record<string, 'theory' | 'lab' | 'other'>>(() => {
+        if (selectedSubjects.length === 0 || selectedDomains.length === 0 || !domainData) return {};
+        const map: Record<string, 'theory' | 'lab' | 'other'> = {};
+        selectedDomains.forEach(domain => {
+            const subjectMap = domainData[domain] || {};
+            selectedSubjects.forEach(subject => {
+                const items = subjectMap[subject] || [];
+                items.forEach(item => {
+                    if (!item.SLOT) return;
+                    const t = item.TYPE.toUpperCase().trim();
+                    if (['ETH', 'TH', 'PJT', 'SS', 'OC', 'EPJ'].includes(t)) {
+                        map[item.SLOT] = 'theory';
+                    } else if (['ELA', 'LO'].includes(t)) {
+                        map[item.SLOT] = map[item.SLOT] === 'theory' ? 'theory' : 'lab';
+                    } else {
+                        map[item.SLOT] = map[item.SLOT] || 'other';
+                    }
+                });
+            });
+        });
+        return map;
     }, [selectedSubjects, selectedDomains, domainData]);
 
     // Get faculties for selected slot
@@ -429,12 +453,81 @@ export default function PreferencesPage() {
                     return false;
                 }
 
-                newCourses.forEach(c => addCourse(c));
+                // Merge-on-add: if adding a lab entry for a course that already has a theory entry
+                // (or vice versa), merge them into a single 'both' entry.
+                const finalNewCourses: fullCourseData[] = [];
+                let mergedExistingCourses = [...existingCourses];
+
+                for (const newCourse of newCourses) {
+                    if (newCourse.courseType === 'lab') {
+                        const theoryIdx = mergedExistingCourses.findIndex(
+                            c => c.courseCode === newCourse.courseCode && (c.courseType === 'th' || c.courseType === 'both')
+                        );
+                        if (theoryIdx !== -1) {
+                            const theoryCourse = mergedExistingCourses[theoryIdx];
+                            const labSlot = newCourse.courseSlots[0];
+                            if (labSlot) {
+                                const mergedCourse: fullCourseData = {
+                                    ...theoryCourse,
+                                    courseType: 'both',
+                                    courseCodeLab: newCourse.courseCode,
+                                    courseNameLab: newCourse.courseName,
+                                    courseSlots: theoryCourse.courseSlots.map(cs => ({
+                                        ...cs,
+                                        slotFaculties: cs.slotFaculties.map(f => {
+                                            const match = labSlot.slotFaculties.find(lf => lf.facultyName === f.facultyName);
+                                            return match ? { ...f, facultyLabSlot: labSlot.slotName } : f;
+                                        }),
+                                    })),
+                                };
+                                mergedExistingCourses = [
+                                    ...mergedExistingCourses.slice(0, theoryIdx),
+                                    mergedCourse,
+                                    ...mergedExistingCourses.slice(theoryIdx + 1),
+                                ];
+                                updateCourse(theoryCourse.courseCode, mergedCourse);
+                                continue; // Skip adding lab as separate entry
+                            }
+                        }
+                    } else if (newCourse.courseType === 'th') {
+                        const labIdx = mergedExistingCourses.findIndex(
+                            c => c.courseCode === newCourse.courseCode && c.courseType === 'lab'
+                        );
+                        if (labIdx !== -1) {
+                            const labCourse = mergedExistingCourses[labIdx];
+                            const labSlot = labCourse.courseSlots[0];
+                            if (labSlot) {
+                                const mergedCourse: fullCourseData = {
+                                    ...newCourse,
+                                    courseType: 'both',
+                                    courseCodeLab: labCourse.courseCode,
+                                    courseNameLab: labCourse.courseName,
+                                    courseSlots: newCourse.courseSlots.map(cs => ({
+                                        ...cs,
+                                        slotFaculties: cs.slotFaculties.map(f => {
+                                            const match = labSlot.slotFaculties.find(lf => lf.facultyName === f.facultyName);
+                                            return match ? { ...f, facultyLabSlot: labSlot.slotName } : f;
+                                        }),
+                                    })),
+                                };
+                                // Remove old lab entry, add merged theory entry
+                                mergedExistingCourses = mergedExistingCourses.filter((_, i) => i !== labIdx);
+                                mergedExistingCourses.push(mergedCourse);
+                                addCourse(mergedCourse); // context: add merged (lab entry will be removed next)
+                                updateCourse(labCourse.courseCode, mergedCourse);
+                                continue;
+                            }
+                        }
+                    }
+                    finalNewCourses.push(newCourse);
+                }
+
+                finalNewCourses.forEach(c => addCourse(c));
 
                 try {
-                    let updatedExistingCourses = [...existingCourses];
+                    let updatedExistingCourses = [...mergedExistingCourses];
 
-                    newCourses.forEach(course => {
+                    finalNewCourses.forEach(course => {
                         updatedExistingCourses = updatedExistingCourses.filter(existing => existing.id !== course.id);
                         updatedExistingCourses.push(course);
                     });
@@ -442,7 +535,7 @@ export default function PreferencesPage() {
                     setPlannerStoredValue('preferenceCourses', JSON.stringify(updatedExistingCourses));
                 } catch (error) {
                     console.error('Error saving preferenceCourses cookie:', error);
-                    setPlannerStoredValue('preferenceCourses', JSON.stringify(newCourses));
+                    setPlannerStoredValue('preferenceCourses', JSON.stringify(finalNewCourses));
                 }
 
                 setSavedFacultyPreferences(prev => {
@@ -538,7 +631,7 @@ export default function PreferencesPage() {
                                                     <button
                                                         key={dept}
                                                         ref={(el) => { itemRefs.current[dept] = el; }}
-                                                        onClick={() => handleDomainSelect(dept)}
+                                                        onClick={() => handleDomainSelect(dept, false)}
                                                         className={`${selectionButtonClass} cursor-pointer ${selectedDomains.includes(dept)
                                                             ? selectionButtonSelectedClass
                                                             : selectionButtonUnselectedClass
@@ -560,7 +653,7 @@ export default function PreferencesPage() {
                                                     <button
                                                         key={subject}
                                                         ref={(el) => { itemRefs.current[subject] = el; }}
-                                                        onClick={() => handleSubjectSelect(subject)}
+                                                        onClick={() => handleSubjectSelect(subject, false)}
                                                         className={`${selectionButtonClass} cursor-pointer ${selectedSubjects.includes(subject)
                                                             ? selectionButtonSelectedClass
                                                             : selectionButtonUnselectedClass
@@ -587,19 +680,32 @@ export default function PreferencesPage() {
                                                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">
                                                     Select one option
                                                 </p>
-                                                {slots.length > 0 ? slots.map(slot => (
-                                                    <button
-                                                        key={slot}
-                                                        ref={(el) => { itemRefs.current[slot] = el; }}
-                                                        onClick={() => handleSlotSelect(slot)}
-                                                        className={`${selectionButtonClass} ${selectedSlots.includes(slot)
-                                                            ? selectionButtonSelectedClass
-                                                            : selectionButtonUnselectedClass
-                                                            }`}
-                                                    >
-                                                        {slot}
-                                                    </button>
-                                                )) : (
+                                                {slots.length > 0 ? slots.map(slot => {
+                                                    const slotKind = slotTypes[slot];
+                                                    return (
+                                                        <button
+                                                            key={slot}
+                                                            ref={(el) => { itemRefs.current[slot] = el; }}
+                                                            onClick={() => handleSlotSelect(slot, false)}
+                                                            className={`${selectionButtonClass} ${selectedSlots.includes(slot)
+                                                                ? selectionButtonSelectedClass
+                                                                : selectionButtonUnselectedClass
+                                                                } flex items-center justify-between`}
+                                                        >
+                                                            <span>{slot}</span>
+                                                            {slotKind === 'theory' && (
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 ml-2 shrink-0">
+                                                                    Theory
+                                                                </span>
+                                                            )}
+                                                            {slotKind === 'lab' && (
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 ml-2 shrink-0">
+                                                                    Lab
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    );
+                                                }) : (
                                                     <div className="text-center text-gray-700 py-8">
                                                         Please select a subject first
                                                     </div>

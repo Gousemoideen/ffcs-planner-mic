@@ -10,15 +10,12 @@ function getDepartmentPrefix(courseCode: string): string {
     return match?.[0] || courseCode;
 }
 
-function normalizeCourseType(courseType: string): 'th' | 'lab' | 'both' {
-    switch (courseType.toUpperCase()) {
-        case 'LO':
-            return 'lab';
-        case 'PJT':
-            return 'th';
-        default:
-            return 'th';
-    }
+export function isTheoryType(type: string): boolean {
+    return ['ETH', 'TH', 'PJT', 'SS', 'OC', 'EPJ'].includes(type.toUpperCase().trim());
+}
+
+export function isLabType(type: string): boolean {
+    return ['ELA', 'LO'].includes(type.toUpperCase().trim());
 }
 
 export function buildChennaiCatalog(records: readonly ChennaiCourseRecord[] = chennaiCourses): ChennaiDomainCatalog {
@@ -72,7 +69,8 @@ export function getChennaiDepartmentData(selectedDepartments: string[]): Chennai
 }
 
 export function toFullCourseType(courseType: string): 'th' | 'lab' | 'both' {
-    return normalizeCourseType(courseType);
+    if (isLabType(courseType)) return 'lab';
+    return 'th';
 }
 
 export function getChennaiCourseType(courseCode: string): 'th' | 'lab' | 'both' {
@@ -86,10 +84,9 @@ export function getChennaiCourseType(courseCode: string): 'th' | 'lab' | 'both' 
     let hasLab = false;
 
     matchingRecords.forEach((record) => {
-        const normalizedType = record.TYPE.trim().toUpperCase();
-        if (normalizedType === 'LO' || normalizedType === 'ELA') {
+        if (isLabType(record.TYPE)) {
             hasLab = true;
-        } else {
+        } else if (isTheoryType(record.TYPE)) {
             hasTheory = true;
         }
     });
@@ -134,18 +131,64 @@ export function buildPreferenceCoursesFromChennaiSelection(
             const [courseCode, ...courseNameParts] = subject.split(' - ');
             const courseName = courseNameParts.join(' - ') || subject;
 
+            let hasTheorySelected = false;
+            let hasLabSelected = false;
+            let hasAutoPairedLab = false;
+
+            const courseSlots = Array.from(slotFacultyMap.entries()).map(([slotName, facultiesSet]) => {
+                // Find the actual TYPE for this slot from the records
+                const matchingRecord = subjectRecords.find(
+                    r => r.SLOT === slotName && selectedFaculties.includes(r.FACULTY)
+                );
+                const slotIsTheory = matchingRecord ? isTheoryType(matchingRecord.TYPE) : false;
+                const slotIsLab = matchingRecord ? isLabType(matchingRecord.TYPE) : false;
+
+                if (slotIsTheory) hasTheorySelected = true;
+                if (slotIsLab) hasLabSelected = true;
+
+                const slotFaculties = Array.from(facultiesSet).map((facultyName) => {
+                    let facultyLabSlot: string | undefined;
+
+                    if (slotIsTheory) {
+                        // Auto-pair: faculty must have EXACTLY 1 ELA/LO row for this course
+                        const labRecords = subjectRecords.filter(
+                            r => r.FACULTY === facultyName && isLabType(r.TYPE)
+                        );
+
+                        if (labRecords.length === 1) {
+                            facultyLabSlot = labRecords[0].SLOT;
+                            hasAutoPairedLab = true;
+                        }
+                        // 0 or 2+ lab records → cannot auto-pair; user adds lab manually
+                    }
+
+                    return { facultyName, ...(facultyLabSlot ? { facultyLabSlot } : {}) };
+                });
+
+                return { slotName, slotFaculties };
+            });
+
+            // Determine courseType based on what was selected + auto-pair
+            let courseType: 'th' | 'lab' | 'both';
+            if (hasAutoPairedLab || (hasTheorySelected && hasLabSelected)) {
+                courseType = 'both';
+            } else if (hasLabSelected && !hasTheorySelected) {
+                courseType = 'lab';
+            } else {
+                courseType = 'th';
+            }
+
             courseEntries.push({
                 id: `${courseCode}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                courseType: toFullCourseType(subjectRecords[0]?.TYPE || domain),
+                courseType,
                 courseCode,
                 courseName,
-                courseSlots: Array.from(slotFacultyMap.entries()).map(([slotName, faculties]) => ({
-                    slotName,
-                    slotFaculties: Array.from(faculties).map((facultyName) => ({ facultyName })),
-                })),
+                ...(courseType === 'both' ? { courseCodeLab: courseCode, courseNameLab: courseName } : {}),
+                courseSlots,
             });
         });
     });
 
     return courseEntries;
 }
+

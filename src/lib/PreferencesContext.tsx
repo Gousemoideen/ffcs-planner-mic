@@ -8,6 +8,7 @@ type PreferencesContextType = {
     selectedCourses: fullCourseData[];
     setSelectedScheme: (scheme: string) => void;
     addCourse: (course: fullCourseData) => void;
+    updateCourse: (courseCode: string, updatedCourse: fullCourseData) => void;
     removeCourse: (courseCode: string) => void;
     clearCourses: () => void;
 };
@@ -26,6 +27,12 @@ export const PreferencesProvider = ({ children }: { children: ReactNode }) => {
         });
     }, []);
 
+    const updateCourse = useCallback((courseCode: string, updatedCourse: fullCourseData) => {
+        setSelectedCourses(prev =>
+            prev.map(c => c.courseCode === courseCode ? updatedCourse : c)
+        );
+    }, []);
+
     const removeCourse = useCallback((courseCode: string) => {
         setSelectedCourses(prev => prev.filter(c => c.courseCode !== courseCode));
     }, []);
@@ -41,6 +48,7 @@ export const PreferencesProvider = ({ children }: { children: ReactNode }) => {
                 selectedCourses,
                 setSelectedScheme,
                 addCourse,
+                updateCourse,
                 removeCourse,
                 clearCourses,
             }}

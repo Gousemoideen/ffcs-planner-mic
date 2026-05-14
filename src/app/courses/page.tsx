@@ -61,53 +61,117 @@ const createUid = () =>
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+// Lab slots always follow the pattern L{n}+L{n+1} — they start with 'L'
+const isLabSlotName = (slot: string): boolean => slot.trim().toUpperCase().startsWith('L');
+
 const buildPreferenceCoursesFromRows = (rows: FacultyEntry[]): fullCourseData[] => {
-    // 1. Group rows by course code (so a course only exists once)
+    // Group rows by courseCode, tracking theory vs lab slots per faculty
     const coursesMap = new Map<string, {
         courseCode: string;
         courseName: string;
-        slotsMap: Map<string, Set<string>>; // slotName -> set of faculty names
+        // facultyName -> { theorySlots, labSlots }
+        facultySlots: Map<string, { theorySlots: string[]; labSlots: string[] }>;
     }>();
 
     rows.forEach(row => {
         if (!coursesMap.has(row.courseCode)) {
             coursesMap.set(row.courseCode, {
                 courseCode: row.courseCode,
-                courseName: row.courseName, // typically identical across same course code
-                slotsMap: new Map(),
+                courseName: row.courseName,
+                facultySlots: new Map(),
             });
         }
 
         const courseGroup = coursesMap.get(row.courseCode)!;
 
-        if (!courseGroup.slotsMap.has(row.slot)) {
-            courseGroup.slotsMap.set(row.slot, new Set());
+        if (!courseGroup.facultySlots.has(row.facultyName)) {
+            courseGroup.facultySlots.set(row.facultyName, { theorySlots: [], labSlots: [] });
         }
 
-        courseGroup.slotsMap.get(row.slot)!.add(row.facultyName);
+        const fs = courseGroup.facultySlots.get(row.facultyName)!;
+        if (isLabSlotName(row.slot)) {
+            if (!fs.labSlots.includes(row.slot)) fs.labSlots.push(row.slot);
+        } else {
+            if (!fs.theorySlots.includes(row.slot)) fs.theorySlots.push(row.slot);
+        }
     });
 
     const result: fullCourseData[] = [];
 
-    // 2. Convert to the expected fullCourseData format
     coursesMap.forEach((course) => {
-        const courseSlots = Array.from(course.slotsMap.entries()).map(([slotName, facultySet]) => ({
-            slotName,
-            slotFaculties: Array.from(facultySet).map(facultyName => ({ facultyName }))
-        }));
-
-        result.push({
-            // Using a simpler ID or one that encompasses all slots securely
-            id: `${course.courseCode}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-            courseType: getChennaiCourseType(course.courseCode),
-            courseCode: course.courseCode,
-            courseName: course.courseName,
-            courseSlots,
+        let hasTheory = false;
+        let hasLab = false;
+        course.facultySlots.forEach(({ theorySlots, labSlots }) => {
+            if (theorySlots.length > 0) hasTheory = true;
+            if (labSlots.length > 0) hasLab = true;
         });
+
+        let courseType: 'th' | 'lab' | 'both';
+        if (hasTheory && hasLab) courseType = 'both';
+        else if (hasLab) courseType = 'lab';
+        else courseType = 'th';
+
+        if (courseType === 'both') {
+            // Build theory-slot entries with facultyLabSlot attached
+            const theorySlotMap = new Map<string, { facultyName: string; facultyLabSlot?: string }[]>();
+
+            course.facultySlots.forEach(({ theorySlots, labSlots }, facultyName) => {
+                const labSlot = labSlots[0]; // pair with first lab slot
+                theorySlots.forEach(theorySlot => {
+                    if (!theorySlotMap.has(theorySlot)) theorySlotMap.set(theorySlot, []);
+                    theorySlotMap.get(theorySlot)!.push({
+                        facultyName,
+                        ...(labSlot ? { facultyLabSlot: labSlot } : {}),
+                    });
+                });
+                // Faculty with only lab (no theory) — store as standalone lab slot
+                if (theorySlots.length === 0) {
+                    labSlots.forEach(labSlot => {
+                        if (!theorySlotMap.has(labSlot)) theorySlotMap.set(labSlot, []);
+                        theorySlotMap.get(labSlot)!.push({ facultyName });
+                    });
+                }
+            });
+
+            result.push({
+                id: `${course.courseCode}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                courseType: 'both',
+                courseCode: course.courseCode,
+                courseName: course.courseName,
+                courseCodeLab: course.courseCode,
+                courseNameLab: course.courseName,
+                courseSlots: Array.from(theorySlotMap.entries()).map(([slotName, faculties]) => ({
+                    slotName,
+                    slotFaculties: faculties,
+                })),
+            });
+        } else {
+            // Pure theory or pure lab — simple flat grouping by slot
+            const slotMap = new Map<string, Set<string>>();
+            course.facultySlots.forEach(({ theorySlots, labSlots }, facultyName) => {
+                const slots = courseType === 'lab' ? labSlots : theorySlots;
+                slots.forEach(slot => {
+                    if (!slotMap.has(slot)) slotMap.set(slot, new Set());
+                    slotMap.get(slot)!.add(facultyName);
+                });
+            });
+
+            result.push({
+                id: `${course.courseCode}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                courseType,
+                courseCode: course.courseCode,
+                courseName: course.courseName,
+                courseSlots: Array.from(slotMap.entries()).map(([slotName, facultySet]) => ({
+                    slotName,
+                    slotFaculties: Array.from(facultySet).map(facultyName => ({ facultyName })),
+                })),
+            });
+        }
     });
 
     return result;
 };
+
 
 // Detect if two slots clash
 const doSlotsClash = (slot1: string, slot2: string): boolean => {
@@ -196,6 +260,18 @@ export default function CoursesPage() {
                                 slot: courseSlot.slotName || 'N/A',
                                 facultyName: faculty.facultyName || 'N/A',
                             });
+                            // Also emit a row for the paired lab slot so the
+                            // theory+lab pairing survives the FacultyEntry round-trip
+                            if (faculty.facultyLabSlot) {
+                                rows.push({
+                                    uid: createUid(),
+                                    no: rows.length + 1,
+                                    courseCode: course.courseCode || 'N/A',
+                                    courseName: course.courseName || 'N/A',
+                                    slot: faculty.facultyLabSlot,
+                                    facultyName: faculty.facultyName || 'N/A',
+                                });
+                            }
                         });
                     });
                 });
