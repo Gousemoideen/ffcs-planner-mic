@@ -28,9 +28,12 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
+import { useFlags } from '@flagsmith/flagsmith/react';
 import { usePreferences } from '@/lib/PreferencesContext';
 import { fullCourseData } from '@/lib/type';
 import { getPlannerStoredValue, setPlannerStoredValue } from '@/lib/plannerStorage';
+import { FEATURE_FLAGS } from '@/lib/featureFlags';
+import ModeHelpDialog from '@/components/ModeHelpDialog';
 import type { ChennaiDomainCatalog } from '@/lib/chennaiCatalog';
 import {
     buildPreferenceCoursesFromChennaiSelection,
@@ -71,6 +74,24 @@ const STEP_LABELS = [
     'Select Faculty',
     'Faculty Priority',
 ];
+const FACULTY_FIRST_STEP_LABELS = [
+    'Select Domain',
+    'Select Subject',
+    'Select Faculty',
+    'Select Slot',
+    'Faculty Priority',
+];
+const FACULTY_FIRST_MODE_COOKIE = 'facultyFirstPreferenceMode';
+const FACULTY_FIRST_MODE_HELP = [
+    {
+        title: 'Faculty First Mode - ON',
+        description: 'Choose the faculty before choosing a slot. The slot step will show only the slots available for that selected faculty.',
+    },
+    {
+        title: 'Faculty First Mode - OFF',
+        description: 'Use the existing flow: choose a slot first, then select one or more faculty available in that slot.',
+    },
+];
 
 const selectionButtonClass = 'w-full p-3 lg:p-4 rounded-lg text-left font-semibold transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:bg-white';
 const selectionButtonSelectedClass = 'bg-white ring-2 ring-blue-500 shadow-md';
@@ -80,6 +101,8 @@ export default function PreferencesPage() {
     const router = useRouter();
     const { data: session } = useSession();
     const { addCourse, updateCourse } = usePreferences();
+    const flags = useFlags([FEATURE_FLAGS.facultyFirstPreferenceFlow]);
+    const isFacultyFirstToggleAvailable = Boolean(flags[FEATURE_FLAGS.facultyFirstPreferenceFlow]?.enabled);
 
     const itemRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -88,10 +111,15 @@ export default function PreferencesPage() {
     const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
     const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
     const [selectedFaculties, setSelectedFaculties] = useState<string[]>([]);
-    const [savedFacultyPreferences, setSavedFacultyPreferences] = useState<string[]>([]);
+    const [savedFacultyPreferences, setSavedFacultyPreferences] = useState<(string | { name: string; type: string })[]>([]);
     const [facultyPriority, setFacultyPriority] = useState<'slot' | 'faculty'>('slot');
+    const [isFacultyFirstModeEnabled, setIsFacultyFirstModeEnabled] = useState(false);
+    const [hasLoadedFacultyFirstMode, setHasLoadedFacultyFirstMode] = useState(false);
+    const [isHelpOpen, setIsHelpOpen] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
     const [selectionError, setSelectionError] = useState('');
+    const isFacultyFirstMode = isFacultyFirstToggleAvailable && isFacultyFirstModeEnabled;
+    const stepLabels = isFacultyFirstMode ? FACULTY_FIRST_STEP_LABELS : STEP_LABELS;
 
     const moveFacultyUp = (index: number) => {
         if (index === 0) return;
@@ -115,6 +143,7 @@ export default function PreferencesPage() {
             const savedSlots = getCookie('preferenceSlots');
             const savedFaculties = getPlannerStoredValue('preferenceMultipleFaculties');
             const savedPriority = getCookie('facultyPriority');
+            const savedFacultyFirstMode = getCookie(FACULTY_FIRST_MODE_COOKIE);
 
             if (savedStep) {
                 const parsedStep = Number.parseInt(savedStep, 10);
@@ -133,6 +162,8 @@ export default function PreferencesPage() {
             if (savedSlots) setSelectedSlots(JSON.parse(savedSlots));
             if (savedFaculties) setSavedFacultyPreferences(JSON.parse(savedFaculties));
             if (savedPriority) setFacultyPriority(savedPriority as 'slot' | 'faculty');
+            if (savedFacultyFirstMode === 'true') setIsFacultyFirstModeEnabled(true);
+            setHasLoadedFacultyFirstMode(true);
         }, 0);
 
         return () => window.clearTimeout(timer);
@@ -146,6 +177,11 @@ export default function PreferencesPage() {
         setCookie('preferenceSlots', JSON.stringify(selectedSlots));
         setCookie('facultyPriority', facultyPriority);
     }, [currentStep, selectedDomains, selectedSubjects, selectedSlots, facultyPriority]);
+
+    useEffect(() => {
+        if (!hasLoadedFacultyFirstMode) return;
+        setCookie(FACULTY_FIRST_MODE_COOKIE, isFacultyFirstModeEnabled ? 'true' : 'false');
+    }, [hasLoadedFacultyFirstMode, isFacultyFirstModeEnabled]);
 
     useEffect(() => {
         setPlannerStoredValue('preferenceMultipleFaculties', JSON.stringify(savedFacultyPreferences));
@@ -175,21 +211,24 @@ export default function PreferencesPage() {
         return [...new Set(allSubjects)];
     }, [selectedDomains, domainData]);
 
-    // Get slots for selected subject
+    // Get slots for selected subject, narrowed to the active faculty in faculty-first mode.
     const slots = useMemo(() => {
         if (selectedSubjects.length === 0 || selectedDomains.length === 0 || !domainData) return [];
         const slotSet = new Set<string>();
+        const activeFaculty = isFacultyFirstMode ? selectedFaculties[0] : undefined;
+
         selectedDomains.forEach(domain => {
             const subjectMap = domainData[domain] || {};
             selectedSubjects.forEach(subject => {
                 const subjectData = subjectMap[subject] || [];
                 subjectData.forEach((item) => {
+                    if (activeFaculty && item.FACULTY !== activeFaculty) return;
                     if (item.SLOT) slotSet.add(item.SLOT);
                 });
             });
         });
         return Array.from(slotSet);
-    }, [selectedSubjects, selectedDomains, domainData]);
+    }, [selectedSubjects, selectedDomains, domainData, isFacultyFirstMode, selectedFaculties]);
 
     // Slot type map: theory (ETH/TH) vs lab (ELA/LO) — used for labels in Step 3
     const slotTypes = useMemo<Record<string, 'theory' | 'lab' | 'other'>>(() => {
@@ -215,9 +254,10 @@ export default function PreferencesPage() {
         return map;
     }, [selectedSubjects, selectedDomains, domainData]);
 
-    // Get faculties for selected slot
+    // Get faculties for the selected subject. Normal mode narrows by slot; faculty-first mode lists all subject faculty.
     const faculties = useMemo<string[]>(() => {
-        if (selectedSubjects.length === 0 || selectedDomains.length === 0 || selectedSlots.length === 0 || !domainData) return [];
+        if (selectedSubjects.length === 0 || selectedDomains.length === 0 || !domainData) return [];
+        if (!isFacultyFirstMode && selectedSlots.length === 0) return [];
         const facultySet = new Set<string>();
 
         selectedDomains.forEach(domain => {
@@ -225,7 +265,7 @@ export default function PreferencesPage() {
             selectedSubjects.forEach(subject => {
                 const subjectData = subjectMap[subject] || [];
                 subjectData.forEach((item) => {
-                    if (selectedSlots.includes(item.SLOT)) {
+                    if (isFacultyFirstMode || selectedSlots.includes(item.SLOT)) {
                         if (item.FACULTY) facultySet.add(item.FACULTY);
                     }
                 });
@@ -233,95 +273,7 @@ export default function PreferencesPage() {
         });
 
         return Array.from(facultySet);
-    }, [selectedSubjects, selectedDomains, selectedSlots, domainData]);
-
-    // Keyboard navigation to scroll to items starting with pressed key
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-            const key = e.key.toLowerCase();
-            let itemsToSearch: string[] = [];
-            if (currentStep === 1) itemsToSearch = domains;
-            else if (currentStep === 2) itemsToSearch = subjects;
-            else if (currentStep === 3) itemsToSearch = slots;
-            else if (currentStep === 4) itemsToSearch = faculties;
-
-            if (key === 'enter') {
-                if (currentStep === 4) {
-                    if (selectedFaculties.length > 0) {
-                        e.preventDefault();
-                        // Mirror exactly what handleNext() does for Step 4
-                        const persisted = persistCurrentSelection(false);
-                        if (persisted) setCurrentStep(5);
-                    }
-                    return;
-                }
-                // Steps 1, 2, 3 — advance if a selection has been made
-                if (currentStep === 1 && selectedDomains.length > 0) {
-                    e.preventDefault();
-                    setCurrentStep(2);
-                    return;
-                }
-                if (currentStep === 2 && selectedSubjects.length > 0) {
-                    e.preventDefault();
-                    setCurrentStep(3);
-                    return;
-                }
-                if (currentStep === 3 && selectedSlots.length > 0) {
-                    e.preventDefault();
-                    setCurrentStep(4);
-                    return;
-                }
-                return;
-            }
-
-            if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
-                if (itemsToSearch.length === 0) return;
-                e.preventDefault();
-                
-                const activeElement = document.activeElement as HTMLButtonElement;
-                const currentIndex = itemsToSearch.findIndex(item => itemRefs.current[item] === activeElement);
-                let nextIndex = 0;
-
-                if (currentIndex !== -1) {
-                    if (key === 'arrowdown' || key === 'arrowright') {
-                        nextIndex = Math.min(itemsToSearch.length - 1, currentIndex + 1);
-                    } else if (key === 'arrowup' || key === 'arrowleft') {
-                        nextIndex = Math.max(0, currentIndex - 1);
-                    }
-                }
-                
-                const targetItem = itemsToSearch[nextIndex];
-                if (targetItem && itemRefs.current[targetItem]) {
-                    itemRefs.current[targetItem].focus();
-                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    
-                    if (currentStep === 1) handleDomainSelect(targetItem, false);
-                    else if (currentStep === 2) handleSubjectSelect(targetItem, false);
-                    else if (currentStep === 3) handleSlotSelect(targetItem, false);
-                    else if (currentStep === 4) handleFacultySelect(targetItem, false);
-                }
-                return;
-            }
-
-            if (key.length === 1 && /[a-z]/.test(key)) {
-                const targetItem = itemsToSearch.find(item => item.toLowerCase().startsWith(key));
-                if (targetItem && itemRefs.current[targetItem]) {
-                    itemRefs.current[targetItem].focus();
-                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    
-                    if (currentStep === 1) handleDomainSelect(targetItem, false);
-                    else if (currentStep === 2) handleSubjectSelect(targetItem, false);
-                    else if (currentStep === 3) handleSlotSelect(targetItem, false);
-                    else if (currentStep === 4) handleFacultySelect(targetItem, false);
-                }
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentStep, domains, subjects, slots, faculties, selectedDomains, selectedSubjects, selectedSlots, selectedFaculties]);
+    }, [selectedSubjects, selectedDomains, selectedSlots, domainData, isFacultyFirstMode]);
 
     const handleNext = () => {
         if (currentStep === 4) {
@@ -349,6 +301,39 @@ export default function PreferencesPage() {
         }
     };
 
+    const handleFacultyFirstModeToggle = () => {
+        setSelectionError('');
+        setIsFacultyFirstModeEnabled(prev => !prev);
+        setSelectedSlots([]);
+
+        setSelectedFaculties(prev => {
+            if (selectedSubjects.length === 0 || selectedDomains.length === 0 || !domainData) {
+                return prev;
+            }
+
+            const validFaculties = new Set<string>();
+            selectedDomains.forEach(domain => {
+                const subjectMap = domainData[domain] || {};
+                selectedSubjects.forEach(subject => {
+                    const subjectData = subjectMap[subject] || [];
+                    subjectData.forEach(item => {
+                        if (item.FACULTY) validFaculties.add(item.FACULTY);
+                    });
+                });
+            });
+
+            return prev.filter(faculty => validFaculties.has(faculty));
+        });
+
+        if (currentStep > 2) {
+            setCurrentStep(3);
+        }
+    };
+
+    const handleFacultyFirstModeHelp = () => {
+        setIsHelpOpen(true);
+    };
+
     const handleAddAnotherProfessor = () => {
         setSelectionError('');
         setSelectedSubjects([]);
@@ -358,7 +343,7 @@ export default function PreferencesPage() {
         setCookie('preferenceStep', '2');
     };
 
-    const handleDomainSelect = (domain: string, autoAdvance = true) => {
+    const handleDomainSelect = React.useCallback((domain: string, autoAdvance = true) => {
         setSelectionError('');
         
         setSelectedDomains([domain]);
@@ -372,9 +357,9 @@ export default function PreferencesPage() {
         if (autoAdvance) {
             setTimeout(() => setCurrentStep(2), 200);
         }
-    };
+    }, [selectedDomains]);
 
-    const handleSubjectSelect = (subject: string, autoAdvance = true) => {
+    const handleSubjectSelect = React.useCallback((subject: string, autoAdvance = true) => {
         setSelectionError('');
         
         setSelectedSubjects([subject]);
@@ -387,23 +372,31 @@ export default function PreferencesPage() {
         if (autoAdvance) {
             setTimeout(() => setCurrentStep(3), 200);
         }
-    };
+    }, [selectedSubjects]);
 
-    const handleSlotSelect = (slot: string, autoAdvance = true) => {
+    const handleSlotSelect = React.useCallback((slot: string, autoAdvance = true) => {
         setSelectionError('');
         setSelectedSlots([slot]);
         
-        if (selectedSlots[0] !== slot) {
+        if (!isFacultyFirstMode && selectedSlots[0] !== slot) {
             setSelectedFaculties([]);
         }
 
         if (autoAdvance) {
             setTimeout(() => setCurrentStep(4), 200);
         }
-    };
+    }, [isFacultyFirstMode, selectedSlots]);
 
-    const handleFacultySelect = (faculty: string, autoAdvance = true) => {
+    const handleFacultySelect = React.useCallback((faculty: string, autoAdvance = true) => {
         setSelectionError('');
+
+        if (isFacultyFirstMode) {
+            setSelectedFaculties([faculty]);
+            if (selectedFaculties[0] !== faculty) {
+                setSelectedSlots([]);
+            }
+            return;
+        }
         
         if (!autoAdvance) {
             // Keyboard navigation: strictly single-select to keep the "one selection" visual
@@ -423,9 +416,9 @@ export default function PreferencesPage() {
             // OR we can make it so that if they've selected some and click an already selected one, it advances?
             // Actually, let's keep it simple: manual Next for multi-select.
         }
-    };
+    }, [isFacultyFirstMode, selectedFaculties]);
 
-    const persistCurrentSelection = (resetWizard = true) => {
+    const persistCurrentSelection = React.useCallback((resetWizard = true) => {
         if (selectedSubjects.length > 0 && selectedSlots.length > 0 && selectedFaculties.length > 0) {
             setSelectionError('');
             const newCourses = buildPreferenceCoursesFromChennaiSelection(
@@ -559,9 +552,13 @@ export default function PreferencesPage() {
 
                 setSavedFacultyPreferences(prev => {
                     const merged = [...prev];
+                    const currentType = selectedSlots[0] ? (slotTypes[selectedSlots[0]] || 'theory') : 'theory';
                     selectedFaculties.forEach(faculty => {
-                        if (!merged.includes(faculty)) {
-                            merged.push(faculty);
+                        const exists = merged.some(f => 
+                            (typeof f === 'string' ? f : f.name) === faculty
+                        );
+                        if (!exists) {
+                            merged.push({ name: faculty, type: currentType });
                         }
                     });
                     return merged;
@@ -581,7 +578,7 @@ export default function PreferencesPage() {
         }
 
         return false;
-    };
+    }, [addCourse, selectedDomains, selectedFaculties, selectedSlots, selectedSubjects, slotTypes, updateCourse]);
 
     const canProceed = () => {
         switch (currentStep) {
@@ -590,9 +587,9 @@ export default function PreferencesPage() {
             case 2:
                 return selectedSubjects.length > 0;
             case 3:
-                return selectedSlots.length > 0;
+                return isFacultyFirstMode ? selectedFaculties.length > 0 : selectedSlots.length > 0;
             case 4:
-                return selectedFaculties.length > 0;
+                return isFacultyFirstMode ? selectedSlots.length > 0 : selectedFaculties.length > 0;
             case 5:
                 return savedFacultyPreferences.length > 0;
             default:
@@ -600,13 +597,161 @@ export default function PreferencesPage() {
         }
     };
 
+    // Keyboard navigation to scroll to items starting with pressed key
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            const key = e.key.toLowerCase();
+            let itemsToSearch: string[] = [];
+            if (currentStep === 1) itemsToSearch = domains;
+            else if (currentStep === 2) itemsToSearch = subjects;
+            else if (currentStep === 3) itemsToSearch = isFacultyFirstMode ? faculties : slots;
+            else if (currentStep === 4) itemsToSearch = isFacultyFirstMode ? slots : faculties;
+
+            if (key === 'enter') {
+                if (currentStep === 4) {
+                    const hasFinalSelection = isFacultyFirstMode ? selectedSlots.length > 0 : selectedFaculties.length > 0;
+                    if (hasFinalSelection) {
+                        e.preventDefault();
+                        const persisted = persistCurrentSelection(false);
+                        if (persisted) setCurrentStep(5);
+                    }
+                    return;
+                }
+
+                if (currentStep === 1 && selectedDomains.length > 0) {
+                    e.preventDefault();
+                    setCurrentStep(2);
+                    return;
+                }
+                if (currentStep === 2 && selectedSubjects.length > 0) {
+                    e.preventDefault();
+                    setCurrentStep(3);
+                    return;
+                }
+                if (currentStep === 3 && (isFacultyFirstMode ? selectedFaculties.length > 0 : selectedSlots.length > 0)) {
+                    e.preventDefault();
+                    setCurrentStep(4);
+                    return;
+                }
+                return;
+            }
+
+            if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+                if (itemsToSearch.length === 0) return;
+                e.preventDefault();
+
+                const activeElement = document.activeElement as HTMLButtonElement;
+                const currentIndex = itemsToSearch.findIndex(item => itemRefs.current[item] === activeElement);
+                let nextIndex = 0;
+
+                if (currentIndex !== -1) {
+                    if (key === 'arrowdown' || key === 'arrowright') {
+                        nextIndex = Math.min(itemsToSearch.length - 1, currentIndex + 1);
+                    } else if (key === 'arrowup' || key === 'arrowleft') {
+                        nextIndex = Math.max(0, currentIndex - 1);
+                    }
+                }
+
+                const targetItem = itemsToSearch[nextIndex];
+                if (targetItem && itemRefs.current[targetItem]) {
+                    itemRefs.current[targetItem].focus();
+                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                    if (currentStep === 1) handleDomainSelect(targetItem, false);
+                    else if (currentStep === 2) handleSubjectSelect(targetItem, false);
+                    else if (currentStep === 3) {
+                        if (isFacultyFirstMode) handleFacultySelect(targetItem, false);
+                        else handleSlotSelect(targetItem, false);
+                    } else if (currentStep === 4) {
+                        if (isFacultyFirstMode) handleSlotSelect(targetItem, false);
+                        else handleFacultySelect(targetItem, false);
+                    }
+                }
+                return;
+            }
+
+            if (key.length === 1 && /[a-z]/.test(key)) {
+                const targetItem = itemsToSearch.find(item => item.toLowerCase().startsWith(key));
+                if (targetItem && itemRefs.current[targetItem]) {
+                    itemRefs.current[targetItem].focus();
+                    itemRefs.current[targetItem].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                    if (currentStep === 1) handleDomainSelect(targetItem, false);
+                    else if (currentStep === 2) handleSubjectSelect(targetItem, false);
+                    else if (currentStep === 3) {
+                        if (isFacultyFirstMode) handleFacultySelect(targetItem, false);
+                        else handleSlotSelect(targetItem, false);
+                    } else if (currentStep === 4) {
+                        if (isFacultyFirstMode) handleSlotSelect(targetItem, false);
+                        else handleFacultySelect(targetItem, false);
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [
+        currentStep,
+        domains,
+        subjects,
+        slots,
+        faculties,
+        selectedDomains,
+        selectedSubjects,
+        selectedSlots,
+        selectedFaculties,
+        isFacultyFirstMode,
+        handleDomainSelect,
+        handleSubjectSelect,
+        handleFacultySelect,
+        handleSlotSelect,
+        persistCurrentSelection,
+    ]);
+
     return (
         <>
         <div className={`h-screen bg-[#F5E6D3] font-sans overflow-hidden transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
             <div className="h-full px-[clamp(12px,1.5vw,24px)] pt-[clamp(10px,1vh,18px)] pb-29">
                 <div className="w-full max-w-450 h-full mx-auto flex flex-col min-h-0">
-                    <div className="flex items-center gap-4 px-2 pt-6 pb-3 shrink-0">
+                    <div className="flex items-center justify-between gap-4 px-2 pt-6 pb-3 shrink-0">
                         <h1 className="text-[26px] lg:text-3xl font-bold text-black animate-lucid-fade-up">Select Your Preferences</h1>
+                        {isFacultyFirstToggleAvailable && (
+                            <div className="shrink-0 flex h-11 items-center gap-2 rounded-[10px] bg-[#F6E9AB] px-3 py-2 shadow-sm">
+                                <span className="text-sm font-extrabold text-gray-900 whitespace-nowrap">
+                                    Faculty first mode
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={handleFacultyFirstModeHelp}
+                                    aria-label="What is faculty first mode?"
+                                    title="What is faculty first mode?"
+                                    className="flex h-6 w-6 items-center justify-center rounded-full bg-[#F0C73C] font-extrabold leading-none text-gray-900 shadow-sm transition-colors hover:bg-[#E6B829] focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
+                                >
+                                    ?
+                                </button>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    onClick={handleFacultyFirstModeToggle}
+                                    aria-checked={isFacultyFirstMode}
+                                    aria-label="Toggle faculty first mode"
+                                    className={`relative h-7 w-12 rounded-full shadow-inner transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
+                                        isFacultyFirstMode ? 'bg-[#F0C73C]' : 'bg-white'
+                                    }`}
+                                >
+                                    <span
+                                        className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition-all duration-200 ${
+                                            isFacultyFirstMode
+                                                ? 'left-6 bg-white'
+                                                : 'left-1 bg-[#D8CF96]'
+                                        }`}
+                                    />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex-1 min-h-0 bg-white rounded-[18px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-white overflow-hidden px-4 py-4 lg:px-6 lg:py-5 animate-lucid-fade-up-delayed">
@@ -630,7 +775,7 @@ export default function PreferencesPage() {
                                         style={{ borderBottomColor: STEP_BORDER_COLORS[stepNum - 1] }}
                                     >
                                         <h2 className="text-[16px] lg:text-[28px] font-bold text-black m-0 leading-none text-center">
-                                            {stepNum}. {STEP_LABELS[stepNum - 1]}
+                                            {stepNum}. {stepLabels[stepNum - 1]}
                                         </h2>
                                     </div>
 
@@ -693,14 +838,13 @@ export default function PreferencesPage() {
                                             </div>
                                         )}
 
-                                        {/* Step 3: Slot Selection */}
-                                        {stepNum === 3 && (
+                                        {/* Slot Selection */}
+                                        {((stepNum === 3 && !isFacultyFirstMode) || (stepNum === 4 && isFacultyFirstMode)) && (
                                             <div style={{ display: 'grid', gap: '10px' }}>
                                                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">
                                                     Select one option
                                                 </p>
                                                 {slots.length > 0 ? slots.map(slot => {
-                                                    const slotKind = slotTypes[slot];
                                                     return (
                                                         <button
                                                             key={slot}
@@ -712,7 +856,7 @@ export default function PreferencesPage() {
                                                                 } flex items-center justify-between`}
                                                         >
                                                             <span>{slot}</span>
-                                                            {slotKind === 'theory' && (
+                                                            {/* {slotKind === 'theory' && (
                                                                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 ml-2 shrink-0">
                                                                     Theory
                                                                 </span>
@@ -721,22 +865,22 @@ export default function PreferencesPage() {
                                                                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 ml-2 shrink-0">
                                                                     Lab
                                                                 </span>
-                                                            )}
+                                                            )} */}
                                                         </button>
                                                     );
                                                 }) : (
                                                     <div className="text-center text-gray-700 py-8">
-                                                        Please select a subject first
+                                                        {isFacultyFirstMode ? 'Please select a faculty first' : 'Please select a subject first'}
                                                     </div>
                                                 )}
                                             </div>
                                         )}
 
-                                        {/* Step 4: Faculty Selection */}
-                                        {stepNum === 4 && (
+                                        {/* Faculty Selection */}
+                                        {((stepNum === 3 && isFacultyFirstMode) || (stepNum === 4 && !isFacultyFirstMode)) && (
                                             <div style={{ display: 'grid', gap: '10px' }}>
                                                 <p className={`text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1 ${selectionError ? 'mt-1' : ''}`}>
-                                                    Select one or more options
+                                                    {isFacultyFirstMode ? 'Select one option' : 'Select one or more options'}
                                                 </p>
                                                 {faculties.length > 0 ? faculties.map((faculty, idx) => (
                                                     <button
@@ -752,7 +896,7 @@ export default function PreferencesPage() {
                                                     </button>
                                                 )) : (
                                                     <div className="text-center text-gray-700 py-8">
-                                                        Please select a slot first
+                                                        {isFacultyFirstMode ? 'Please select a subject first' : 'Please select a slot first'}
                                                     </div>
                                                 )}
                                             </div>
@@ -762,16 +906,31 @@ export default function PreferencesPage() {
                                         {stepNum === 5 && (
                                             <div className="flex flex-col h-full">
                                                 <p className="text-gray-800 font-medium mb-3">
-                                                    Professors selected in Step 4 are auto-added:
+                                                    Professors selected in {isFacultyFirstMode ? 'Step 3' : 'Step 4'} are auto-added:
                                                 </p>
 
                                                 <div className="bg-white/50 rounded-lg p-4 shadow-sm border border-white/60">
                                                     <p className="text-sm font-bold text-gray-800 mb-3">Your Faculty Preferences:</p>
                                                     {savedFacultyPreferences.length > 0 ? (
                                                         <div style={{ display: 'grid', gap: '8px' }}>
-                                                            {savedFacultyPreferences.map((faculty, idx) => (
-                                                                <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100">
-                                                                    <span className="text-sm font-bold text-gray-900">{faculty}</span>
+                                                            {savedFacultyPreferences.map((f, idx) => {
+                                                                const name = typeof f === 'string' ? f : f.name;
+                                                                const type = typeof f === 'string' ? null : f.type;
+                                                                return (
+                                                                    <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-sm font-bold text-gray-900">{name}</span>
+                                                                            {type === 'theory' && (
+                                                                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 shrink-0">
+                                                                                    Theory
+                                                                                </span>
+                                                                            )}
+                                                                            {type === 'lab' && (
+                                                                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 shrink-0">
+                                                                                    Lab
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
                                                                     <div className="flex gap-2 items-center">
                                                                         <button
                                                                             onClick={() => moveFacultyUp(idx)}
@@ -798,7 +957,8 @@ export default function PreferencesPage() {
                                                                         </button>
                                                                     </div>
                                                                 </div>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </div>
                                                     ) : (
                                                         <p className="text-xs text-gray-500">No faculty added yet</p>
@@ -862,7 +1022,7 @@ export default function PreferencesPage() {
                                             transform: 'rotate(180deg)'
                                         }}
                                     >
-                                        {STEP_LABELS[stepNum - 1]}
+                                        {stepLabels[stepNum - 1]}
                                     </div>
                                 </div>
                             )}
@@ -962,6 +1122,13 @@ export default function PreferencesPage() {
                 </div>
             </div>
         </div>
+
+        {isHelpOpen && (
+            <ModeHelpDialog
+                sections={FACULTY_FIRST_MODE_HELP}
+                onClose={() => setIsHelpOpen(false)}
+            />
+        )}
 
             <style jsx>{`
                 .custom-scrollbar::-webkit-scrollbar {
