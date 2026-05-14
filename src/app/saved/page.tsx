@@ -152,8 +152,11 @@ export default function SavedPage() {
     const [renameOpen, setRenameOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [renameValue, setRenameValue] = useState('');
+    const [shareOpen, setShareOpen] = useState(false);
+    const [shareUrl, setShareUrl] = useState('');
     const [toast, setToast] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [canScrollTimetables, setCanScrollTimetables] = useState(false);
 
     // Unique value per mount — ensures the fetch effect re-runs every time
     // this component mounts, even if userEmail/status haven't changed
@@ -181,6 +184,35 @@ export default function SavedPage() {
             .catch(() => { if (!cancelled) setTimetables([]); });
         return () => { cancelled = true; };
     }, [userEmail, status, mountId]);
+
+    useEffect(() => {
+        let frameId = 0;
+
+        if (viewMode !== 'list') {
+            frameId = window.requestAnimationFrame(() => setCanScrollTimetables(false));
+            return () => window.cancelAnimationFrame(frameId);
+        }
+
+        const container = scrollRef.current;
+        if (!container) return;
+
+        const updateScrollState = () => {
+            setCanScrollTimetables(container.scrollWidth > container.clientWidth + 1);
+        };
+
+        frameId = window.requestAnimationFrame(updateScrollState);
+
+        const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateScrollState) : null;
+        resizeObserver?.observe(container);
+
+        window.addEventListener('resize', updateScrollState);
+
+        return () => {
+            window.cancelAnimationFrame(frameId);
+            resizeObserver?.disconnect();
+            window.removeEventListener('resize', updateScrollState);
+        };
+    }, [timetables?.length, loading, viewMode]);
 
     const showToast = useCallback((msg: string) => {
         setToast(msg);
@@ -298,10 +330,12 @@ export default function SavedPage() {
                 slots_count: selectedTT.slots.length,
                 copied_to_clipboard: copied,
             });
+            setShareUrl(url);
+            setShareOpen(true);
             if (copied) {
                 showToast('Share link copied to clipboard!');
             } else {
-                window.prompt('Copy this share link:', url);
+                showToast('Share link ready to copy.');
             }
         } catch {
             showToast('Failed to copy share link. Please try again.');
@@ -309,6 +343,9 @@ export default function SavedPage() {
     }
 
     const displayTimetables = timetables ?? [];
+    const sharePrompt = 'Check out my FFCS timetable';
+    const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(`${sharePrompt}: ${shareUrl}`)}`;
+    const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(sharePrompt)}`;
 
     return (
         <div className="saved-page">
@@ -344,7 +381,7 @@ export default function SavedPage() {
                                 <div className="cards-scroller-wrapper">
                                     {/* White background wrapping cards + arrows */}
                                     <div className="white-cards-outer">
-                                        <div ref={scrollRef} className="white-cards-box">
+                                        <div ref={scrollRef} className={`white-cards-box ${canScrollTimetables ? '' : 'hide-scrollbar'}`}>
                                             {displayTimetables.map((tt, i) => (
                                                 <TimetableCard
                                                     key={tt._id}
@@ -370,14 +407,16 @@ export default function SavedPage() {
                                         </div>
 
                                         {/* Scroll arrows inside white background */}
-                                        <div className="arrows-row">
-                                            <button onClick={scrollLeft} className="arrow-btn">
-                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E40AF" strokeWidth="2.5"><path d="M15 18l-6-6 6-6" /></svg>
-                                            </button>
-                                            <button onClick={scrollRight} className="arrow-btn">
-                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E40AF" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
-                                            </button>
-                                        </div>
+                                        {canScrollTimetables && (
+                                            <div className="arrows-row">
+                                                <button onClick={scrollLeft} className="arrow-btn">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E40AF" strokeWidth="2.5"><path d="M15 18l-6-6 6-6" /></svg>
+                                                </button>
+                                                <button onClick={scrollRight} className="arrow-btn">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E40AF" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -485,25 +524,34 @@ export default function SavedPage() {
 
             {/* Rename Modal */}
             {renameOpen && (
-                <div className="modal-backdrop" onClick={() => setRenameOpen(false)}>
-                    <div className="modal-box" onClick={e => e.stopPropagation()}>
-                        <div className="modal-icon modal-icon-purple">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/35 px-4 backdrop-blur-sm" onClick={() => setRenameOpen(false)}>
+                    <div
+                        className="relative w-full max-w-118 animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[30px] border border-[#eadcc5] bg-[#FFF8E7] p-7 shadow-[0_24px_70px_rgba(74,54,30,0.18)] sm:p-8"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="mb-4! flex items-start gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#A0C4FF]/65 text-black shadow-[0_10px_22px_rgba(160,196,255,0.28)]">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-[24px] font-black leading-tight text-black">Rename Timetable</h3>
+                                <p className="mt-1 text-[14px] font-semibold leading-relaxed text-[#6b6257]">Enter a new name for your timetable.</p>
+                            </div>
                         </div>
-                        <h3 className="modal-title">Rename Timetable</h3>
-                        <p className="modal-desc">Enter a new name for your timetable</p>
-                        <input
-                            type="text"
-                            value={renameValue}
-                            onChange={e => setRenameValue(e.target.value)}
-                            className="modal-input"
-                            placeholder="Timetable name"
-                            autoFocus
-                            onKeyDown={e => e.key === 'Enter' && handleRename()}
-                        />
-                        <div className="modal-btns">
-                            <button onClick={() => setRenameOpen(false)} className="modal-btn-cancel">Cancel</button>
-                            <button onClick={handleRename} className="modal-btn-confirm modal-btn-purple">Save</button>
+                        <div className="mb-3! rounded-2xl border border-[#eadcc5] bg-white p-2.5 shadow-[0_8px_24px_rgba(74,54,30,0.05)]">
+                            <input
+                                type="text"
+                                value={renameValue}
+                                onChange={e => setRenameValue(e.target.value)}
+                                className="w-full rounded-xl bg-[#F8E8D2]/45 px-4 py-3.5 text-[16px] font-semibold text-black outline-none transition-all placeholder:font-medium placeholder:text-[#8a8177] focus:ring-2 focus:ring-[#A0C4FF]/45"
+                                placeholder="Timetable name"
+                                autoFocus
+                                onKeyDown={e => e.key === 'Enter' && handleRename()}
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <button onClick={() => setRenameOpen(false)} className="min-h-13 rounded-2xl bg-white px-6 py-3.5 text-center text-[16px] font-black text-[#6b6257] shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-colors hover:bg-[#f6ead8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/60">Cancel</button>
+                            <button onClick={handleRename} className="min-h-13 rounded-2xl bg-[#A0C4FF] px-6 py-3.5 text-center text-[16px] font-black text-black shadow-[0_8px_20px_rgba(160,196,255,0.32)] transition-all hover:bg-[#8eb1ef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/70 active:scale-[0.98]">Save</button>
                         </div>
                     </div>
                 </div>
@@ -511,17 +559,103 @@ export default function SavedPage() {
 
             {/* Delete Modal */}
             {deleteOpen && (
-                <div className="modal-backdrop" onClick={() => setDeleteOpen(false)}>
-                    <div className="modal-box" onClick={e => e.stopPropagation()}>
-                        <div className="modal-icon modal-icon-red">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E11D48" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/35 px-4 backdrop-blur-sm" onClick={() => setDeleteOpen(false)}>
+                    <div
+                        className="relative w-full max-w-118 animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[30px] border border-[#eadcc5] bg-[#FFF8E7] p-7 shadow-[0_24px_70px_rgba(74,54,30,0.18)] sm:p-8"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="mb-4! flex items-start gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#FFE4E6] text-[#E11D48] shadow-[0_10px_22px_rgba(225,29,72,0.14)]">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-[24px] font-black leading-tight text-black">Delete Timetable</h3>
+                                <p className="mt-1 text-[14px] font-semibold leading-relaxed text-[#6b6257]">This action cannot be undone.</p>
+                            </div>
                         </div>
-                        <h3 className="modal-title">Delete Timetable</h3>
-                        <p className="modal-desc">Are you sure you want to delete</p>
-                        <p className="modal-desc-bold">&quot;{selectedTT?.title}&quot;?</p>
-                        <div className="modal-btns">
-                            <button onClick={() => setDeleteOpen(false)} className="modal-btn-cancel">Cancel</button>
-                            <button onClick={handleDelete} className="modal-btn-confirm modal-btn-red">Delete</button>
+                        <div className="mb-3! rounded-2xl border border-[#eadcc5] bg-white p-4 text-center shadow-[0_8px_24px_rgba(74,54,30,0.05)]">
+                            <p className="text-[14px] font-semibold text-[#6b6257]">Are you sure you want to delete</p>
+                            <p className="mt-1 text-[16px] font-black text-black">&quot;{selectedTT?.title}&quot;?</p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <button onClick={() => setDeleteOpen(false)} className="min-h-13 rounded-2xl bg-white px-6 py-3.5 text-center text-[16px] font-black text-[#6b6257] shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-colors hover:bg-[#f6ead8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/60">Cancel</button>
+                            <button onClick={handleDelete} className="min-h-13 rounded-2xl bg-[#FFE4E6] px-6 py-3.5 text-center text-[16px] font-black text-[#BE123C] shadow-[0_8px_20px_rgba(225,29,72,0.12)] transition-all hover:bg-[#fecdd3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FDA4AF] active:scale-[0.98]">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Share Modal */}
+            {shareOpen && (
+                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/35 px-4 backdrop-blur-sm" onClick={() => setShareOpen(false)}>
+                    <div
+                        className="relative w-full max-w-118 animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[30px] border border-[#eadcc5] bg-[#FFF8E7] p-7 shadow-[0_24px_70px_rgba(74,54,30,0.18)] sm:p-8"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="mb-4! flex items-start gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#A0C4FF]/65 text-black shadow-[0_10px_22px_rgba(160,196,255,0.28)]">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="text-[24px] font-black leading-tight text-black">Timetable Link</h3>
+                                <p className="mt-1 text-[14px] font-semibold leading-relaxed text-[#6b6257]">Copy the public link or share it directly.</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-1! rounded-2xl border border-[#eadcc5] bg-white p-2.5 shadow-[0_8px_24px_rgba(74,54,30,0.05)]">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={shareUrl}
+                                    readOnly
+                                    className="min-w-0 flex-1 rounded-xl bg-[#F8E8D2]/45 px-4 py-3 text-[13px] font-semibold text-[#1f2937] outline-none"
+                                    aria-label="Saved timetable share link"
+                                />
+                                <button
+                                    onClick={async () => {
+                                        const copied = await copyToClipboard(shareUrl);
+                                        if (copied) showToast('Share link copied!');
+                                    }}
+                                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#A0C4FF] text-black transition-all hover:bg-[#8ab2f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/70 active:scale-95"
+                                    title="Copy to clipboard"
+                                >
+                                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mb-3! grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <a
+                                href={whatsappShareUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex min-h-13 items-center justify-center gap-2 rounded-2xl border border-[#bfead0] bg-[#C8F7DC] px-4 py-3 text-[15px] font-semibold text-black transition-all hover:bg-[#b0eac8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8F7DC] active:scale-[0.98]"
+                            >
+                                WhatsApp
+                            </a>
+                            <a
+                                href={telegramShareUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex min-h-13 items-center justify-center gap-2 rounded-2xl border border-[#d8e5fb] bg-[#A0C4FF] px-4 py-3 text-[15px] font-semibold text-black transition-all hover:bg-[#8fb6f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/70 active:scale-[0.98]"
+                            >
+                                Telegram
+                            </a>
+                        </div>
+
+                        <div className="pt-1">
+                            <button
+                                onClick={() => setShareOpen(false)}
+                                className="w-full rounded-2xl bg-white px-6 py-3.5 text-center text-[16px] font-black text-[#6b6257] shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-colors hover:bg-[#f6ead8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/60"
+                            >
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -856,7 +990,7 @@ function TimetableDetailView({
                                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                             </svg>
-                            Copy Link
+                            Share Link
                         </button>
                         <button className="dv-download-btn" onClick={() => setShowDownloadModal(true)} title="Download as PDF">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
@@ -885,7 +1019,7 @@ function TimetableDetailView({
                                     <td>{code}</td>
                                     <td>{info.courseName}</td>
                                     <td>{info.facultyName}</td>
-                                    <td>—</td>
+                                    <td>{info.credits > 0 ? info.credits : '—'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -935,14 +1069,61 @@ function TimetableDetailView({
             </div>
 
             {showDownloadModal && (
-                <div className="modal-backdrop" onClick={() => setShowDownloadModal(false)}>
-                    <div className="modal-box" onClick={e => e.stopPropagation()}>
-                        <h3 className="modal-title">Download PDF</h3>
-                        <p className="modal-desc">Choose what you want to download</p>
-                        <div className="modal-btns" style={{ justifyContent: 'stretch', flexDirection: 'column' }}>
-                            <button onClick={() => handleDownload('timetable')} className="modal-btn-confirm modal-btn-purple">Timetable</button>
-                            <button onClick={() => handleDownload('slots')} className="modal-btn-confirm" style={{ background: '#CFE3FF', color: '#111827' }}>Selected Courses</button>
-                            <button onClick={() => setShowDownloadModal(false)} className="modal-btn-cancel">Cancel</button>
+                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/35 px-4 backdrop-blur-sm" onClick={() => setShowDownloadModal(false)}>
+                    <div
+                        className="relative w-full max-w-118 animate-[scaleIn_0.2s_ease] overflow-hidden rounded-[30px] border border-[#eadcc5] bg-[#FFF8E7] p-7 shadow-[0_24px_70px_rgba(74,54,30,0.18)] sm:p-8"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="mb-7 flex items-start gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#C8F7DC]/80 text-black shadow-[0_10px_22px_rgba(200,247,220,0.3)]">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <path d="M7 10l5 5 5-5" />
+                                    <path d="M12 15V3" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="text-[24px] font-black leading-tight text-black">Download PDF</h3>
+                                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#6b6257]">Choose the timetable view or selected courses list.</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <button
+                                onClick={() => handleDownload('timetable')}
+                                className="flex min-h-16 items-center justify-center gap-3 rounded-2xl border border-[#bfead0] bg-[#C8F7DC] px-5 py-4 text-[16px] font-black text-black shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-all hover:bg-[#b0eac8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8F7DC] active:scale-[0.98]"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                                    <path d="M7 8h10" />
+                                    <path d="M7 12h10" />
+                                    <path d="M7 16h6" />
+                                </svg>
+                                Timetable
+                            </button>
+                            <button
+                                onClick={() => handleDownload('slots')}
+                                className="flex min-h-16 items-center justify-center gap-3 rounded-2xl border border-[#d8e5fb] bg-[#A0C4FF] px-5 py-4 text-[16px] font-black text-black shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-all hover:bg-[#8fb6f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/70 active:scale-[0.98]"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M8 6h13" />
+                                    <path d="M8 12h13" />
+                                    <path d="M8 18h13" />
+                                    <path d="M3 6h.01" />
+                                    <path d="M3 12h.01" />
+                                    <path d="M3 18h.01" />
+                                </svg>
+                                Selected Courses
+                            </button>
+                        </div>
+
+                        <div className="pt-1">
+                            <button
+                                onClick={() => setShowDownloadModal(false)}
+                                className="w-full rounded-2xl bg-white px-6 py-3.5 text-center text-[16px] font-black text-[#6b6257] shadow-[0_8px_20px_rgba(74,54,30,0.05)] transition-colors hover:bg-[#f6ead8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A0C4FF]/60"
+                            >
+                                Cancel
+                            </button>
                         </div>
                     </div>
                 </div>

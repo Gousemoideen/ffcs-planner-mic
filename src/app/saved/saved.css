@@ -204,6 +204,15 @@
   min-width: 0;
 }
 
+.white-cards-box.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.white-cards-box.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .white-cards-box::-webkit-scrollbar {
   height: 10px;
 }
