@@ -31,7 +31,6 @@ Use short, descriptive names that describe the behavior.
 
 Good examples:
 
-- `beta_timetable_flow`
 - `show_saved_page_redesign`
 - `enable_new_course_card`
 - `use_simplified_share_modal`
@@ -116,8 +115,6 @@ Good places to use feature flags in this repo:
 - new course selection cards
 
 ## Notes For This Repo
-
-The current landing page already uses a beta flag in [app/page.tsx](app/page.tsx).
 
 If you add another flag later, follow the same pattern:
 
