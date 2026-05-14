@@ -14,6 +14,9 @@ interface IUser extends Document {
         }[];
         courseNames: string[];
     }[];
+    onboardingTours?: {
+        plannerOnboardingTourCompletedAt?: Date;
+    };
 }
 
 const userSchema = new Schema<IUser>(
@@ -39,6 +42,9 @@ const userSchema = new Schema<IUser>(
                 },
             ],
             default: [],
+        },
+        onboardingTours: {
+            plannerOnboardingTourCompletedAt: { type: Date },
         },
     },
     { versionKey: false, timestamps: true }
