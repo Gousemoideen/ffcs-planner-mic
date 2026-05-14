@@ -12,6 +12,7 @@ import { useTimetable } from '@/lib/TimeTableContext';
 import { exportToPDF } from '@/lib/exportToPDF';
 import { generateTT } from '@/lib/utils';
 import { getSlotViewPayload } from '@/lib/slot-view';
+import { getCourseCredits } from '@/lib/chennaiCatalog';
 import { fullCourseData, timetableDisplayData } from '@/lib/type';
 import { clearPlannerClientCache } from '@/lib/clientCache';
 import { getShortCourseName } from '@/lib/courseDisplay';
@@ -221,6 +222,8 @@ export default function TimetablePage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [showSaveModal, setShowSaveModal] = useState(false);
     const [showDownloadModal, setShowDownloadModal] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [shareUrl, setShareUrl] = useState('');
     const [showLogin, setShowLogin] = useState(false);
     const [timetableTitle, setTimetableTitle] = useState('My Schedule');
     const [saveError, setSaveError] = useState('');
@@ -256,20 +259,41 @@ export default function TimetablePage() {
 
     const currentTT = useMemo(() => timetableData?.[currentIndex] || [], [timetableData, currentIndex]);
     const selectedCourses = useMemo(() => {
-        const courseMap = new Map<string, { courseName: string; facultyName: string; slots: string[] }>();
+        const courseMap = new Map<string, { courseName: string; facultyName: string; slots: string[]; credits: number }>();
         currentTT.forEach((slot) => {
             if (!courseMap.has(slot.courseCode)) {
                 courseMap.set(slot.courseCode, {
                     courseName: slot.courseName,
                     facultyName: slot.facultyName,
                     slots: [],
+                    credits: 0,
                 });
             }
-            courseMap.get(slot.courseCode)!.slots.push(slot.slotName);
+            const info = courseMap.get(slot.courseCode)!;
+            if (!info.slots.includes(slot.slotName)) {
+                info.slots.push(slot.slotName);
+                
+                // Calculate credits for this component
+                if (slot.courseCode.includes('__')) {
+                    const codes = slot.courseCode.split('__');
+                    const slots = slot.slotName.split('__');
+                    info.credits += getCourseCredits(codes[0], slots[0], slot.facultyName);
+                    if (codes[1] && slots[1]) {
+                        info.credits += getCourseCredits(codes[1], slots[1], slot.facultyName);
+                    }
+                } else {
+                    info.credits += getCourseCredits(slot.courseCode, slot.slotName, slot.facultyName);
+                }
+            }
         });
         return Array.from(courseMap.entries());
     }, [currentTT]);
-    const exportCreditsLabel = 'TBD';
+
+    const totalCredits = useMemo(() => {
+        return selectedCourses.reduce((sum, [, info]) => sum + info.credits, 0);
+    }, [selectedCourses]);
+
+    const exportCreditsLabel = totalCredits.toString();
 
     const showToast = useCallback((msg: string, type: 'success' | 'error' = 'success') => {
         setToast(msg);
@@ -486,7 +510,6 @@ export default function TimetablePage() {
             return;
         }
         if (currentTT.length === 0) {
-            window.alert('No timetable data to share.');
             showToast('No timetable data to share.', 'error');
             return;
         }
@@ -525,7 +548,6 @@ export default function TimetablePage() {
 
             console.log('Got shareId:', shareId);
             if (!shareId) {
-                window.alert('Could not generate or find shareId.');
                 showToast('Could not generate share link.', 'error');
                 return;
             }
@@ -538,16 +560,14 @@ export default function TimetablePage() {
                 slots_count: currentTT.length,
                 copied_to_clipboard: copied,
             });
+            setShareUrl(url);
+            setShowShareModal(true);
             if (copied) {
-                window.alert('Share link copied!\n' + url);
                 showToast('Share link copied to clipboard!');
-            } else {
-                window.prompt('Copy this share link:', url);
             }
         } catch (error: unknown) {
             console.error('Share error:', error);
             const message = getRequestErrorMessage(error, 'Failed to share timetable. Please try again.');
-            window.alert('Share Error: ' + message);
             showToast(message, 'error');
         }
     };
@@ -829,7 +849,11 @@ export default function TimetablePage() {
                 </div>
                 <div id="selected-courses-export" className="w-300 bg-[#F8E8D2] p-12 font-sans">
                     <div className="rounded-[36px] border border-[#d9d9d9] bg-white px-10 pt-8 pb-10 shadow-[0_12px_40px_rgba(0,0,0,0.04)]">
-                        <h2 className="mb-20 text-center text-[30px] leading-[1.2] font-black text-black">{timetableTitle || 'Selected Courses'}</h2>
+                        <div className="mb-8 flex min-h-20 items-center justify-center border-b border-[#ececec] px-6 pb-6">
+                            <h2 className="m-0 text-center text-[34px] leading-[1.15] font-black text-black">
+                                {timetableTitle || 'Selected Courses'}
+                            </h2>
+                        </div>
                         <div className="overflow-hidden border-y border-[#2c2c2c] bg-white" style={{ marginBottom: 32 }}>
                             <table className="w-full border-collapse text-center">
                                 <thead className="bg-[#D9EBE5]">
@@ -850,7 +874,7 @@ export default function TimetablePage() {
                                             <td className={`px-5 py-4 font-medium text-black ${info.courseName.length > 40 ? 'text-[13px]' : 'text-[16px]'}`}>{info.courseName}</td>
                                             <td className={`px-5 py-4 font-medium text-black ${info.facultyName.length > 25 ? 'text-[13px]' : 'text-[16px]'}`}>{info.facultyName}</td>
                                             <td className="px-5 py-4 text-[16px] font-medium text-black">TBD</td>
-                                            <td className="px-5 py-4 text-[16px] font-medium text-black">TBD</td>
+                                            <td className="px-5 py-4 text-[16px] font-medium text-black">{info.credits}</td>
                                         </tr>
                                     ))}
                                     <tr className="border-t border-[#2c2c2c] bg-[#E7E7E7]">
@@ -967,6 +991,47 @@ export default function TimetablePage() {
                         >
                             Cancel
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Share Modal */}
+            {showShareModal && (
+                <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowShareModal(false)}>
+                    <div
+                        className="bg-white rounded-3xl shadow-2xl p-8 w-[90%] max-w-100 relative animate-[scaleIn_0.2s_ease]"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <h2 className="text-[24px] font-black text-black mb-4">Timetable Shared!</h2>
+                        <p className="text-[15px] text-gray-600 mb-6 font-medium">Use the link below to share your timetable with friends.</p>
+                        
+                        <div className="flex gap-2 mb-6">
+                            <input
+                                type="text"
+                                value={shareUrl}
+                                readOnly
+                                className="w-full p-4 border-2 border-gray-100 rounded-xl text-black font-semibold text-[14px] bg-gray-50 focus:outline-none"
+                            />
+                            <button
+                                onClick={async () => {
+                                    const copied = await copyToClipboard(shareUrl);
+                                    if (copied) showToast('Share link copied!');
+                                }}
+                                className="px-6 bg-[#A0C4FF] hover:bg-[#8ab2f2] text-black font-bold rounded-xl transition-all active:scale-95 flex items-center justify-center"
+                                title="Copy to clipboard"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            </button>
+                        </div>
+
+                        <div className="flex items-center justify-end">
+                            <button
+                                onClick={() => setShowShareModal(false)}
+                                className="min-w-33 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-center text-[16px] font-bold text-gray-800 transition-colors rounded-xl"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
