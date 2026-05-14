@@ -1,9 +1,24 @@
 import { MongoClient } from 'mongodb';
 
 const options = {};
+const SESSION_TTL_INDEX_NAME = 'sessions_expires_ttl';
+
+let sessionTtlIndexPromise: Promise<void> | null = null;
 
 declare global {
     var _mongoClientPromise: Promise<MongoClient> | undefined;
+}
+
+async function ensureSessionTtlIndex(client: MongoClient) {
+    if (!sessionTtlIndexPromise) {
+        sessionTtlIndexPromise = client
+            .db()
+            .collection('sessions')
+            .createIndex({ expires: 1 }, { expireAfterSeconds: 0, name: SESSION_TTL_INDEX_NAME })
+            .then(() => undefined);
+    }
+
+    return sessionTtlIndexPromise;
 }
 
 // Export a function that returns a Promise<MongoClient> so the connection
@@ -25,7 +40,10 @@ export default function getClientPromise(): Promise<MongoClient> {
 
     if (!global._mongoClientPromise) {
         const client = new MongoClient(uri, options);
-        global._mongoClientPromise = client.connect();
+        global._mongoClientPromise = client.connect().then(async (connectedClient) => {
+            await ensureSessionTtlIndex(connectedClient);
+            return connectedClient;
+        });
     }
 
     return global._mongoClientPromise;
