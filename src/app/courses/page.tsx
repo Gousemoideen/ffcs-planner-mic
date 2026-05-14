@@ -9,6 +9,7 @@ import { clashMap } from '@/lib/slots';
 import { generateTT } from '@/lib/utils';
 import { useTimetable } from '@/lib/TimeTableContext';
 import { getPlannerStoredValue, setPlannerStoredValue } from '@/lib/plannerStorage';
+import ModeHelpDialog from '@/components/ModeHelpDialog';
 
 type FacultyEntry = {
     uid: string;
@@ -18,6 +19,17 @@ type FacultyEntry = {
     slot: string;
     facultyName: string;
 };
+
+const ALL_SUBJECTS_MODE_HELP = [
+    {
+        title: 'All Subjects Mode - ON',
+        description: 'Generated timetables strictly include all of the selected subjects.',
+    },
+    {
+        title: 'All Subjects Mode - OFF',
+        description: 'Subjects are prioritized based on their order. If a clash is detected then the subject with lower priority is excluded.',
+    },
+];
 
 const setCookie = (name: string, value: string, days = 30) => {
     const expires = new Date();
@@ -711,36 +723,10 @@ export default function CoursesPage() {
             </div>
 
             {isHelpOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center">
-                    <div className="absolute inset-0 bg-black/35" onClick={() => setIsHelpOpen(false)}></div>
-                    <div className="relative w-[92%] max-w-md bg-[#f4edcf] rounded-sm shadow-[0_16px_34px_rgba(0,0,0,0.20)] overflow-hidden">
-                        <div className="px-8 py-2 bg-[#f1e7b8] border-b-4 border-[#7c6f1f]">
-                            <div className="text-[17px] leading-none font-bold text-black">Alert</div>
-                        </div>
-                        <div className="px-8 py-7 text-left text-[#1f1f1f]">
-                            <div className="space-y-5 text-[16px] leading-[1.34] font-normal">
-                                <div className="space-y-1">
-                                    <div className="font-extrabold text-[17px] leading-[1.2]">All Subjects Mode - ON</div>
-                                    <div className="mb-4">Generated timetables strictly include all of the selected subjects.</div>
-                                </div>
-                                <br></br>
-                                <div className="space-y-1">
-                                    <div className="font-extrabold text-[17px] leading-[1.2]">All Subjects Mode - OFF</div>
-                                    <div>Subjects are prioritized based on their order. If a clash is detected then the subject with lower priority is excluded.</div>
-                                </div>
-                            </div>
-                            <div className="pt-6 text-center">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsHelpOpen(false)}
-                                    className="inline-flex min-w-21.5 items-center justify-center px-7 py-2 bg-[#f0df93] rounded-[5px] text-[14px] leading-none font-semibold text-[#1f1f1f] hover:brightness-95 transition"
-                                >
-                                    OK
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <ModeHelpDialog
+                    sections={ALL_SUBJECTS_MODE_HELP}
+                    onClose={() => setIsHelpOpen(false)}
+                />
             )}
 
             <style jsx>{`
