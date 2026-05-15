@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import Image from "next/image";
-import LoginModal from "../components/loginPopup"
+import LoginModal from "@/components/loginPopup"
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { clearPlannerClientCache } from "@/lib/clientCache";
@@ -322,12 +322,12 @@ export default function LandingPage() {
                       <div className="w-full max-w-175 h-px bg-gray-300 mb-4"></div>
                       <p className="text-center text-[clamp(16px,2vw,20px)] mb-8">Choose what you&apos;d like to do next</p>
                       <div className="flex flex-wrap gap-8 justify-center mb-4">
-                        <button className="flex flex-col items-center justify-center bg-[#E9F3E8] border-[5px] border-[#D4F4E6] rounded-2xl p-6 w-70 max-w-full h-50 shadow hover:bg-green-200 transition text-black" onClick={() => { setOpen(false); router.push('/preferences'); }}>
+                        <button className="flex flex-col items-center justify-center bg-[#E9F3E8] border-[5px] border-[#D4F4E6] rounded-2xl p-6 w-72 max-w-full h-52 shadow hover:bg-green-200 transition text-black" onClick={() => { setOpen(false); router.push('/preferences'); }}>
                           <Image src="/create_new.png" alt="create" width={167} height={101} />
                           <p className="font-medium text-center">Create a new one</p>
                         </button>
                         <button
-                          className="flex flex-col items-center justify-center bg-[#E9D5FF] border-[#F2D8FE] border-[5px] rounded-2xl p-6 w-70 max-w-full h-50 shadow hover:bg-purple-300 transition text-black"
+                          className="flex flex-col items-center justify-center bg-[#E9D5FF] border-[#F2D8FE] border-[5px] rounded-2xl p-6 w-72 max-w-full h-52 shadow hover:bg-purple-300 transition text-black"
                           onClick={() => {
                             if (!session) {
                               setOpen(false);
