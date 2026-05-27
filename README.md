@@ -2,6 +2,32 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Create your local environment file first:
+
+```bash
+cp .env.example .env.local
+```
+
+To enable feature flags with Flagsmith, set `NEXT_PUBLIC_FLAGSMITH_ENVIRONMENT_ID` in `.env.local`.
+
+For rollout rules, naming, and cleanup steps, see [docs/feature-flags.md](docs/feature-flags.md).
+For agent-facing repository guidance, see [docs/agents.md](docs/agents.md).
+
+## Helpful Docs
+
+- [docs/feature-flags.md](docs/feature-flags.md) - rollout rules and flag lifecycle
+- [docs/troubleshooting.md](docs/troubleshooting.md) - common setup and runtime fixes
+- [CONTRIBUTING.md](CONTRIBUTING.md) - workflow, checks, and PR guidance
+
+## Feature Flag Checklist
+
+When adding a new flag:
+
+1. Add the flag name to [lib/featureFlags.ts](lib/featureFlags.ts).
+2. Create the matching flag in Flagsmith.
+3. Test it on your own account first.
+4. Expand gradually and remove the flag after full rollout.
+
 First, run the development server:
 
 ```bash
